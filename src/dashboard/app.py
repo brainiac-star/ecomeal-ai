@@ -1,11 +1,8 @@
 """
 Ecomeal AI — Streamlit Dashboard
-Interactive visualization of food waste predictions, forecasts, anomalies,
-and AI-generated Chef Specials.
 """
 
 import os
-import json
 import sys
 from pathlib import Path
 import streamlit as st
@@ -14,18 +11,14 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date, timedelta
-from typing import List, Optional
 
-# Ensure project root is on path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
 from src.utils.config import get_settings
-
 settings = get_settings()
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Ecomeal AI — Food Waste Intelligence",
+    page_title="Ecomeal AI",
     page_icon="🥗",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -34,344 +27,470 @@ st.set_page_config(
 # ── CSS ────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-.metric-card { background: #1e1e2e; border-radius: 12px; padding: 16px; border-left: 4px solid; }
-.critical { border-color: #ff4444; }
-.high { border-color: #ff8800; }
-.medium { border-color: #ffcc00; }
-.low { border-color: #00cc44; }
-.stTabs [data-baseweb="tab"] { font-size: 16px; font-weight: 600; }
+/* Global */
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+.main { background-color: #0f1117; }
+
+/* Header */
+.hero {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    padding: 2rem 2.5rem;
+    border-radius: 16px;
+    margin-bottom: 1.5rem;
+    border: 1px solid #2d3561;
+}
+.hero h1 { color: #ffffff; font-size: 2rem; font-weight: 700; margin: 0; }
+.hero p  { color: #a0aec0; margin: 0.4rem 0 0; font-size: 1rem; }
+
+/* KPI Cards */
+.kpi-row { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.kpi-card {
+    flex: 1; min-width: 140px;
+    background: #1a1d2e;
+    border-radius: 12px;
+    padding: 1.2rem 1.4rem;
+    border-left: 4px solid;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.kpi-card.red   { border-color: #fc5c7d; }
+.kpi-card.orange{ border-color: #f7971e; }
+.kpi-card.green { border-color: #56ab2f; }
+.kpi-card.blue  { border-color: #4facfe; }
+.kpi-card.purple{ border-color: #a855f7; }
+.kpi-label { color: #718096; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.kpi-value { color: #ffffff; font-size: 1.8rem; font-weight: 700; line-height: 1.2; margin-top: 0.3rem; }
+.kpi-sub   { color: #718096; font-size: 0.75rem; margin-top: 0.2rem; }
+
+/* Risk badges */
+.badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+.badge-critical { background: #fde8e8; color: #c81e1e; }
+.badge-high     { background: #fef3c7; color: #d97706; }
+.badge-medium   { background: #fff3cd; color: #856404; }
+.badge-low      { background: #d1fae5; color: #065f46; }
+
+/* Section headers */
+.section-title {
+    font-size: 1.1rem; font-weight: 700; color: #e2e8f0;
+    padding: 0.5rem 0; border-bottom: 2px solid #2d3748;
+    margin-bottom: 1rem;
+}
+
+/* Chef Special cards */
+.dish-card {
+    background: #1a1d2e;
+    border-radius: 12px;
+    padding: 1.2rem 1.4rem;
+    margin-bottom: 1rem;
+    border: 1px solid #2d3748;
+}
+.dish-name { color: #fff; font-size: 1.1rem; font-weight: 700; }
+.dish-desc { color: #a0aec0; font-size: 0.9rem; margin-top: 0.4rem; }
+.dish-meta { color: #718096; font-size: 0.8rem; margin-top: 0.6rem; }
+
+/* Sidebar */
+section[data-testid="stSidebar"] { background: #1a1d2e; }
+section[data-testid="stSidebar"] .stSelectbox label,
+section[data-testid="stSidebar"] .stSlider label { color: #a0aec0; }
+
+/* Tab styling */
+.stTabs [data-baseweb="tab-list"] { background: #1a1d2e; border-radius: 10px; padding: 4px; }
+.stTabs [data-baseweb="tab"] { color: #718096; font-weight: 600; border-radius: 8px; }
+.stTabs [aria-selected="true"] { background: #2d3748 !important; color: #fff !important; }
+
+/* Dataframe */
+.stDataFrame { border-radius: 10px; overflow: hidden; }
+
+/* Buttons */
+.stButton > button {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white; border: none; border-radius: 8px;
+    font-weight: 600; padding: 0.5rem 1.5rem;
+    transition: opacity 0.2s;
+}
+.stButton > button:hover { opacity: 0.85; }
+
+/* Info/warning/success boxes */
+.stAlert { border-radius: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
 
-@st.cache_resource(show_spinner="Loading AI models...")
+# ── Model loader ───────────────────────────────────────────────────────────────
+@st.cache_resource(show_spinner=False)
 def load_models():
     from src.models.wastage_predictor import WastagePredictor
     from src.models.demand_forecaster import DemandForecaster
     from src.models.anomaly_detector import InventoryAnomalyDetector
-    from src.recommendations.chef_specials import ChefSpecialsEngine
     from src.recommendations.rag_engine import RAGRecommendationEngine
     from src.data.generator import generate_inventory_dataset, generate_demand_history
     from src.data.preprocessor import clean_inventory, encode_categoricals
 
-    wastage = WastagePredictor()
+    wastage  = WastagePredictor()
     forecaster = DemandForecaster()
-    anomaly = InventoryAnomalyDetector()
-    rag = RAGRecommendationEngine()
-    chef = None  # initialized lazily so Streamlit secrets are available
+    anomaly  = InventoryAnomalyDetector()
+    rag      = RAGRecommendationEngine()
 
-    model_loaded = wastage.load() and anomaly.load()
+    model_loaded     = wastage.load() and anomaly.load()
     forecaster_loaded = forecaster.load()
     rag.load() or rag.build_index()
 
     if not model_loaded:
         df_raw = generate_inventory_dataset(n_records=settings.dataset_size, seed=settings.random_seed)
-        df, _ = clean_inventory(df_raw)
-        df = encode_categoricals(df)
-        wastage.train(df)
-        wastage.save()
-        anomaly.fit(df)
-        anomaly.save()
+        df, _  = clean_inventory(df_raw)
+        df     = encode_categoricals(df)
+        wastage.train(df);  wastage.save()
+        anomaly.fit(df);    anomaly.save()
 
     if not forecaster_loaded:
-        df_raw = generate_inventory_dataset(n_records=settings.dataset_size, seed=settings.random_seed)
-        df, _ = clean_inventory(df_raw)
+        df_raw      = generate_inventory_dataset(n_records=settings.dataset_size, seed=settings.random_seed)
+        df, _       = clean_inventory(df_raw)
         ingredients = df["ingredient_name"].unique().tolist()[:30]
-        demand_df = generate_demand_history(ingredients=ingredients, n_days=180)
-        forecaster.fit(demand_df)
-        forecaster.save()
+        demand_df   = generate_demand_history(ingredients=ingredients, n_days=180)
+        forecaster.fit(demand_df); forecaster.save()
 
-    return wastage, forecaster, anomaly, None, rag
+    return wastage, forecaster, anomaly, rag
 
 
-@st.cache_data(show_spinner="Generating inventory data...")
+@st.cache_data(show_spinner=False)
 def get_inventory_data(n_records: int = 1200):
     from src.data.generator import generate_inventory_dataset
     from src.data.preprocessor import clean_inventory, encode_categoricals
-    df_raw = generate_inventory_dataset(n_records=n_records, seed=settings.random_seed)
-    df, quality = clean_inventory(df_raw)
-    df = encode_categoricals(df)
+    df_raw       = generate_inventory_dataset(n_records=n_records, seed=settings.random_seed)
+    df, quality  = clean_inventory(df_raw)
+    df           = encode_categoricals(df)
     return df, quality
 
 
-def run_predictions(df, wastage_model, anomaly_model):
-    preds = wastage_model.predict(df)
-    df_out = pd.concat([df.reset_index(drop=True), preds], axis=1)
-    df_out = anomaly_model.detect(df_out)
-    return df_out
+def get_groq_key():
+    key = ""
+    try:   key = st.secrets.get("GROQ_API_KEY", "")
+    except: pass
+    return key or os.environ.get("GROQ_API_KEY", "")
 
 
-# ── Main app ───────────────────────────────────────────────────────────────────
+# ── Main ───────────────────────────────────────────────────────────────────────
 def main():
-    st.title("🥗 Ecomeal AI — Food Waste Intelligence Platform")
-    st.caption("AI-powered inventory analytics, waste prediction, demand forecasting & Chef Specials")
+    # Hero header
+    st.markdown("""
+    <div class="hero">
+        <h1>🥗 Ecomeal AI</h1>
+        <p>AI-powered food waste intelligence — predict, prevent, and act before ingredients expire.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Load models
-    try:
-        wastage, forecaster, anomaly, _chef, rag = load_models()
-    except Exception as e:
-        st.error(f"Failed to load models: {e}")
-        st.stop()
+    # Sidebar
+    with st.sidebar:
+        st.markdown("### ⚙️ Controls")
+        n_records = st.slider("Inventory Size", 200, 2000, 1200, 100,
+                              help="Number of inventory records to analyse")
+        restaurant_filter = st.selectbox("Restaurant", [
+            "All Restaurants", "The Spice Garden", "Urban Kitchen",
+            "Green Leaf Bistro", "The Curry House", "Bay Leaf Restaurant", "Savanna Grill",
+        ])
+        st.markdown("---")
+        st.markdown("### 📌 About")
+        st.markdown("""
+        **Ecomeal AI** helps restaurants:
+        - 🔴 Spot expiring stock early
+        - 📈 Forecast ingredient demand
+        - 👨‍🍳 Generate Chef Specials from at-risk items
+        - 🚨 Detect data anomalies
+        """)
 
-    # Sidebar controls
-    st.sidebar.header("⚙️ Controls")
-    n_records = st.sidebar.slider("Inventory Size", 200, 2000, 1200, 100)
-    restaurant_filter = st.sidebar.selectbox(
-        "Restaurant Filter",
-        ["All Restaurants", "The Spice Garden", "Urban Kitchen", "Green Leaf Bistro",
-         "The Curry House", "Bay Leaf Restaurant", "Savanna Grill"],
-    )
+    # Load models & data
+    with st.spinner("🤖 Loading AI models..."):
+        wastage, forecaster, anomaly, rag = load_models()
 
-    # Load data
-    df, quality = get_inventory_data(n_records)
+    with st.spinner("📦 Loading inventory data..."):
+        df, quality = get_inventory_data(n_records)
 
-    # Filter by restaurant
     if restaurant_filter != "All Restaurants" and "restaurant" in df.columns:
         df = df[df["restaurant"] == restaurant_filter]
 
-    # Run predictions
-    with st.spinner("Running AI predictions..."):
+    with st.spinner("🔍 Running predictions..."):
         try:
-            df_pred = run_predictions(df, wastage, anomaly)
+            preds  = wastage.predict(df)
+            df_pred = pd.concat([df.reset_index(drop=True), preds], axis=1)
+            df_pred = anomaly.detect(df_pred)
         except Exception as e:
             st.error(f"Prediction error: {e}")
             df_pred = df.copy()
             df_pred["waste_probability"] = df_pred.get("waste_risk_score", 0.3)
-            df_pred["risk_level_pred"] = "medium"
+            df_pred["risk_level_pred"]   = "medium"
 
     # ── KPI Row ────────────────────────────────────────────────────────────────
-    st.markdown("### 📊 Inventory Overview")
-    col1, col2, col3, col4, col5 = st.columns(5)
+    risk_col  = "risk_level_pred" if "risk_level_pred" in df_pred.columns else "risk_level"
+    risk_counts = df_pred[risk_col].value_counts() if risk_col in df_pred.columns else pd.Series()
+    high_risk_df = df_pred[df_pred.get(risk_col, pd.Series()).isin(["high", "critical"])]
+    waste_val    = high_risk_df.get("potential_waste_value", pd.Series(dtype=float)).sum()
+    anomaly_count = int(df_pred.get("is_anomaly", pd.Series(dtype=bool)).sum())
 
-    risk_counts = df_pred.get("risk_level_pred", pd.Series()).value_counts()
-    waste_val = df_pred.get("potential_waste_value", pd.Series(dtype=float))
-    high_risk_val = df_pred[df_pred.get("risk_level_pred", pd.Series()).isin(["high", "critical"])].get(
-        "potential_waste_value", pd.Series(dtype=float)
-    ).sum()
+    st.markdown(f"""
+    <div class="kpi-row">
+        <div class="kpi-card blue">
+            <div class="kpi-label">Total Items</div>
+            <div class="kpi-value">{len(df_pred):,}</div>
+            <div class="kpi-sub">in inventory</div>
+        </div>
+        <div class="kpi-card red">
+            <div class="kpi-label">🔴 Critical Risk</div>
+            <div class="kpi-value">{int(risk_counts.get('critical', 0))}</div>
+            <div class="kpi-sub">Act today</div>
+        </div>
+        <div class="kpi-card orange">
+            <div class="kpi-label">🟠 High Risk</div>
+            <div class="kpi-value">{int(risk_counts.get('high', 0))}</div>
+            <div class="kpi-sub">Use within 2 days</div>
+        </div>
+        <div class="kpi-card red">
+            <div class="kpi-label">💸 Waste Value at Risk</div>
+            <div class="kpi-value">₹{waste_val:,.0f}</div>
+            <div class="kpi-sub">estimated loss</div>
+        </div>
+        <div class="kpi-card purple">
+            <div class="kpi-label">⚠️ Anomalies</div>
+            <div class="kpi-value">{anomaly_count}</div>
+            <div class="kpi-sub">unusual entries</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    col1.metric("Total Items", len(df_pred), help="Items in current inventory")
-    col2.metric("🔴 Critical", int(risk_counts.get("critical", 0)), delta="Act now", delta_color="inverse")
-    col3.metric("🟠 High Risk", int(risk_counts.get("high", 0)), delta="Within 2 days", delta_color="inverse")
-    col4.metric("💸 Waste Value at Risk", f"₹{high_risk_val:,.0f}", help="Estimated loss from high/critical items")
-    col5.metric("📦 Anomalies", int(df_pred.get("is_anomaly", pd.Series(dtype=bool)).sum()), help="Unusual inventory entries")
-
-    # ── Tabs ────────────────────────────────────────────────────────────────────
-    tabs = st.tabs([
-        "🔍 Risk Analysis", "📈 Demand Forecast", "⚠️ Anomalies",
-        "👨‍🍳 Chef Specials", "📊 Explainability", "🗄️ Raw Data"
+    # ── Tabs ───────────────────────────────────────────────────────────────────
+    t1, t2, t3, t4, t5, t6 = st.tabs([
+        "🔍 Risk Analysis", "📈 Demand Forecast",
+        "⚠️ Anomalies", "👨‍🍳 Chef Specials",
+        "🔬 Explainability", "🗄️ Data"
     ])
 
     # ── Tab 1: Risk Analysis ───────────────────────────────────────────────────
-    with tabs[0]:
-        st.markdown("#### Waste Risk Distribution")
-        col_a, col_b = st.columns(2)
+    with t1:
+        st.markdown('<div class="section-title">Waste Risk Overview</div>', unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
 
-        with col_a:
-            risk_col = "risk_level_pred" if "risk_level_pred" in df_pred.columns else "risk_level"
+        with col1:
             if risk_col in df_pred.columns:
-                risk_dist = df_pred[risk_col].value_counts().reset_index()
-                risk_dist.columns = ["risk_level", "count"]
-                color_map = {"critical": "#FF4444", "high": "#FF8800", "medium": "#FFCC00", "low": "#00CC44"}
-                fig = px.pie(
-                    risk_dist, values="count", names="risk_level",
-                    color="risk_level", color_discrete_map=color_map,
-                    title="Risk Level Distribution",
+                rd = df_pred[risk_col].value_counts().reset_index()
+                rd.columns = ["Risk Level", "Count"]
+                color_map = {"critical": "#fc5c7d", "high": "#f7971e", "medium": "#f6d365", "low": "#56ab2f"}
+                fig = px.donut if hasattr(px, "donut") else px.pie
+                fig = px.pie(rd, values="Count", names="Risk Level",
+                             color="Risk Level", color_discrete_map=color_map,
+                             hole=0.55, title="Risk Distribution")
+                fig.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    font_color="#a0aec0", title_font_color="#fff",
+                    legend=dict(font=dict(color="#a0aec0")),
+                    margin=dict(t=50, b=20)
                 )
+                fig.update_traces(textfont_color="#fff")
                 st.plotly_chart(fig, use_container_width=True)
 
-        with col_b:
+        with col2:
             if "waste_probability" in df_pred.columns:
-                fig2 = px.histogram(
-                    df_pred, x="waste_probability", nbins=30,
-                    title="Waste Probability Distribution",
-                    color_discrete_sequence=["#FF6B35"],
+                fig2 = px.histogram(df_pred, x="waste_probability", nbins=30,
+                                    title="Waste Probability Distribution",
+                                    labels={"waste_probability": "Waste Probability"},
+                                    color_discrete_sequence=["#667eea"])
+                fig2.add_vline(x=0.5, line_dash="dash", line_color="#fc5c7d",
+                               annotation_text="Risk Threshold", annotation_font_color="#fc5c7d")
+                fig2.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    font_color="#a0aec0", title_font_color="#fff",
+                    xaxis=dict(gridcolor="#2d3748"), yaxis=dict(gridcolor="#2d3748"),
+                    margin=dict(t=50, b=20)
                 )
-                fig2.add_vline(x=0.5, line_dash="dash", line_color="red", annotation_text="Risk Threshold")
                 st.plotly_chart(fig2, use_container_width=True)
 
-        # Top risk items table
-        st.markdown("#### 🚨 Top At-Risk Items")
-        top_cols = [c for c in ["ingredient_name", "category", "quantity", "unit",
-                                 "days_to_expiry", "waste_probability", "risk_level_pred",
-                                 "potential_waste_value"] if c in df_pred.columns]
-        top_risk = df_pred.nlargest(20, "waste_probability") if "waste_probability" in df_pred.columns else df_pred.head(20)
+        st.markdown('<div class="section-title">🚨 Top At-Risk Items</div>', unsafe_allow_html=True)
+        show_cols = [c for c in ["ingredient_name", "category", "quantity", "unit",
+                                  "days_to_expiry", "waste_probability", risk_col,
+                                  "potential_waste_value"] if c in df_pred.columns]
+        top = df_pred.nlargest(20, "waste_probability") if "waste_probability" in df_pred.columns else df_pred.head(20)
+        top_display = top[show_cols].copy()
+        if "waste_probability" in top_display.columns:
+            top_display["waste_probability"] = top_display["waste_probability"].apply(lambda x: f"{x:.1%}")
+        if "potential_waste_value" in top_display.columns:
+            top_display["potential_waste_value"] = top_display["potential_waste_value"].apply(lambda x: f"₹{x:,.0f}")
+        top_display.columns = [c.replace("_", " ").title() for c in top_display.columns]
+        st.dataframe(top_display, use_container_width=True, height=380, hide_index=True)
 
-        def style_risk(val):
-            colors = {"critical": "background-color: #FF4444; color: white",
-                      "high": "background-color: #FF8800; color: white",
-                      "medium": "background-color: #FFCC00",
-                      "low": "background-color: #CCFFCC"}
-            return colors.get(str(val), "")
-
-        style_fn = getattr(top_risk[top_cols].style, "map", None) or getattr(top_risk[top_cols].style, "applymap")
-        styled = style_fn(style_risk, subset=["risk_level_pred"] if "risk_level_pred" in top_cols else [])
-        st.dataframe(styled, use_container_width=True, height=400)
-
-        # Risk by category
-        st.markdown("#### Risk by Category")
+        st.markdown('<div class="section-title">Risk by Category</div>', unsafe_allow_html=True)
         if "category" in df_pred.columns and "waste_probability" in df_pred.columns:
-            cat_risk = df_pred.groupby("category")["waste_probability"].mean().sort_values(ascending=False).reset_index()
-            fig3 = px.bar(
-                cat_risk, x="category", y="waste_probability",
-                title="Average Waste Probability by Category",
-                color="waste_probability", color_continuous_scale="RdYlGn_r",
+            cat = df_pred.groupby("category")["waste_probability"].mean().sort_values(ascending=True).reset_index()
+            cat.columns = ["Category", "Avg Waste Probability"]
+            fig3 = px.bar(cat, x="Avg Waste Probability", y="Category", orientation="h",
+                          color="Avg Waste Probability", color_continuous_scale="RdYlGn_r",
+                          title="Average Waste Risk by Category")
+            fig3.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font_color="#a0aec0", title_font_color="#fff",
+                xaxis=dict(gridcolor="#2d3748"), yaxis=dict(gridcolor="#2d3748"),
+                coloraxis_showscale=False, margin=dict(t=50, b=20)
             )
             st.plotly_chart(fig3, use_container_width=True)
 
     # ── Tab 2: Demand Forecast ─────────────────────────────────────────────────
-    with tabs[1]:
-        st.markdown("#### Demand Forecasting")
-        available_ingredients = list(forecaster.models.keys())
+    with t2:
+        st.markdown('<div class="section-title">Ingredient Demand Forecasting</div>', unsafe_allow_html=True)
 
-        if not available_ingredients:
-            st.warning("No trained demand models available. Run the pipeline first.")
+        available = list(forecaster.models.keys())
+        if not available:
+            st.warning("No demand models trained yet.")
         else:
-            sel_ingredient = st.selectbox("Select Ingredient", available_ingredients[:50])
-            horizon = st.slider("Forecast Horizon (days)", 7, 60, 14)
+            col_a, col_b = st.columns([2, 1])
+            with col_a:
+                ingredient = st.selectbox("Select Ingredient", available[:50])
+            with col_b:
+                horizon = st.slider("Forecast Days", 7, 60, 14)
 
-            if st.button("Generate Forecast", type="primary"):
-                with st.spinner(f"Forecasting demand for {sel_ingredient}..."):
+            if st.button("📈 Generate Forecast", type="primary"):
+                with st.spinner("Forecasting..."):
                     try:
-                        fc = forecaster.forecast(sel_ingredient, horizon)
+                        fc = forecaster.forecast(ingredient, horizon)
                         fc["ds"] = pd.to_datetime(fc["ds"])
 
                         fig_fc = go.Figure()
                         fig_fc.add_trace(go.Scatter(
-                            x=fc["ds"], y=fc["yhat"],
-                            name="Forecast", line=dict(color="#2196F3", width=2)
+                            x=fc["ds"], y=fc["yhat_upper"],
+                            fill=None, mode="lines", line_color="rgba(102,126,234,0)",
+                            showlegend=False, name="Upper bound"
                         ))
                         fig_fc.add_trace(go.Scatter(
-                            x=pd.concat([fc["ds"], fc["ds"].iloc[::-1]]),
-                            y=pd.concat([fc["yhat_upper"], fc["yhat_lower"].iloc[::-1]]),
-                            fill="toself", fillcolor="rgba(33,150,243,0.2)",
-                            line=dict(color="rgba(255,255,255,0)"),
-                            name="80% Confidence Interval",
+                            x=fc["ds"], y=fc["yhat_lower"],
+                            fill="tonexty", mode="lines",
+                            line_color="rgba(102,126,234,0)",
+                            fillcolor="rgba(102,126,234,0.15)",
+                            name="Confidence Interval"
+                        ))
+                        fig_fc.add_trace(go.Scatter(
+                            x=fc["ds"], y=fc["yhat"],
+                            mode="lines+markers",
+                            line=dict(color="#667eea", width=3),
+                            marker=dict(size=5),
+                            name="Forecast"
                         ))
                         fig_fc.update_layout(
-                            title=f"Demand Forecast: {sel_ingredient}",
+                            title=f"Demand Forecast — {ingredient}",
                             xaxis_title="Date", yaxis_title="Quantity",
-                            hovermode="x unified",
+                            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                            font_color="#a0aec0", title_font_color="#fff",
+                            xaxis=dict(gridcolor="#2d3748"), yaxis=dict(gridcolor="#2d3748"),
+                            hovermode="x unified", legend=dict(font=dict(color="#a0aec0")),
+                            margin=dict(t=50, b=20)
                         )
                         st.plotly_chart(fig_fc, use_container_width=True)
 
-                        col_f1, col_f2, col_f3 = st.columns(3)
-                        col_f1.metric("Peak Demand", f"{fc['yhat'].max():.1f}")
-                        col_f2.metric("Avg Daily Demand", f"{fc['yhat'].mean():.1f}")
-                        col_f3.metric("Total Forecast", f"{fc['yhat'].sum():.1f}")
-
+                        c1, c2, c3 = st.columns(3)
+                        c1.metric("Peak Demand",    f"{fc['yhat'].max():.1f} units")
+                        c2.metric("Daily Average",  f"{fc['yhat'].mean():.1f} units")
+                        c3.metric("Total Forecast", f"{fc['yhat'].sum():.1f} units")
                     except Exception as e:
-                        st.error(f"Forecast error: {e}")
+                        st.error(f"Forecast failed: {e}")
 
-        # Overstock detection
         st.markdown("---")
-        st.markdown("#### Overstock & Shortage Detection")
-        if st.button("Run Overstock Analysis"):
-            with st.spinner("Analyzing stock levels vs forecasted demand..."):
+        st.markdown('<div class="section-title">📦 Overstock & Shortage Detection</div>', unsafe_allow_html=True)
+        if st.button("🔎 Run Overstock Analysis"):
+            with st.spinner("Analysing stock levels vs forecasted demand..."):
                 try:
-                    overstock_df = forecaster.detect_overstock(df_pred, horizon_days=14)
-                    os_items = overstock_df[overstock_df["overstock_risk"]]
-                    sh_items = overstock_df[overstock_df["shortage_risk"]]
-
-                    col_os, col_sh = st.columns(2)
-                    with col_os:
-                        st.markdown(f"**🔴 Overstock Items ({len(os_items)})**")
-                        if not os_items.empty:
-                            st.dataframe(os_items[["ingredient_name", "current_quantity", "overstock_quantity"]],
-                                        use_container_width=True)
+                    os_df = forecaster.detect_overstock(df_pred, horizon_days=14)
+                    over  = os_df[os_df["overstock_risk"]]
+                    short = os_df[os_df["shortage_risk"]]
+                    col_o, col_s = st.columns(2)
+                    with col_o:
+                        st.markdown(f"**🔴 Overstock Items ({len(over)})**")
+                        if not over.empty:
+                            disp = over[["ingredient_name","current_quantity","overstock_quantity"]].copy()
+                            disp.columns = ["Ingredient","Current Stock","Excess Qty"]
+                            st.dataframe(disp, use_container_width=True, hide_index=True)
                         else:
-                            st.success("No overstock items detected!")
-
-                    with col_sh:
-                        st.markdown(f"**🟡 Shortage Risk Items ({len(sh_items)})**")
-                        if not sh_items.empty:
-                            st.dataframe(sh_items[["ingredient_name", "current_quantity", "shortage_quantity"]],
-                                        use_container_width=True)
+                            st.success("No overstock detected!")
+                    with col_s:
+                        st.markdown(f"**🟡 Shortage Risk Items ({len(short)})**")
+                        if not short.empty:
+                            disp = short[["ingredient_name","current_quantity","shortage_quantity"]].copy()
+                            disp.columns = ["Ingredient","Current Stock","Shortfall"]
+                            st.dataframe(disp, use_container_width=True, hide_index=True)
                         else:
                             st.success("No shortage risks detected!")
                 except Exception as e:
-                    st.error(f"Overstock analysis failed: {e}")
+                    st.error(f"Analysis failed: {e}")
 
     # ── Tab 3: Anomalies ───────────────────────────────────────────────────────
-    with tabs[2]:
-        st.markdown("#### 🚨 Anomaly Detection Report")
+    with t3:
+        st.markdown('<div class="section-title">Inventory Anomaly Detection</div>', unsafe_allow_html=True)
+        st.caption("Items flagged as statistically unusual — possible data errors, theft, demand spikes, or spoilage events.")
 
         if "is_anomaly" in df_pred.columns:
-            anomalies = df_pred[df_pred["is_anomaly"]]
-            normal = df_pred[~df_pred["is_anomaly"]]
+            anom  = df_pred[df_pred["is_anomaly"]]
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Anomalies Found",  len(anom))
+            c2.metric("Anomaly Rate",     f"{len(anom)/len(df_pred)*100:.1f}%")
+            c3.metric("Severity",         "High" if not anom.empty and anom.get("anomaly_score", pd.Series()).mean() < -0.6 else "Medium")
 
-            col_an1, col_an2 = st.columns([1, 3])
-            with col_an1:
-                st.metric("Total Anomalies", len(anomalies))
-                st.metric("Anomaly Rate", f"{len(anomalies)/len(df_pred)*100:.1f}%")
-                st.metric("Severity", "High" if not anomalies.empty and anomalies.get("anomaly_score", pd.Series()).mean() < -0.6 else "Medium",
-                          help="How unusual the flagged items are compared to normal inventory")
+            if "anomaly_score" in df_pred.columns:
+                fig_an = px.scatter(
+                    df_pred, x="quantity", y="daily_consumption",
+                    color="is_anomaly",
+                    color_discrete_map={True: "#fc5c7d", False: "#4facfe"},
+                    hover_data=["ingredient_name", "category"],
+                    title="Anomalies: Quantity vs Daily Consumption",
+                    labels={"quantity": "Quantity in Stock", "daily_consumption": "Daily Usage", "is_anomaly": "Anomaly"},
+                    opacity=0.6,
+                )
+                fig_an.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    font_color="#a0aec0", title_font_color="#fff",
+                    xaxis=dict(gridcolor="#2d3748"), yaxis=dict(gridcolor="#2d3748"),
+                    margin=dict(t=50, b=20)
+                )
+                st.plotly_chart(fig_an, use_container_width=True)
 
-            with col_an2:
-                if "anomaly_score" in df_pred.columns and len(df_pred) > 0:
-                    fig_an = px.scatter(
-                        df_pred, x="quantity", y="daily_consumption",
-                        color="is_anomaly",
-                        color_discrete_map={True: "#FF4444", False: "#4488FF"},
-                        hover_data=["ingredient_name", "category"],
-                        title="Anomalies: Quantity vs Daily Consumption",
-                        opacity=0.6,
-                    )
-                    st.plotly_chart(fig_an, use_container_width=True)
-
-            if not anomalies.empty:
-                st.markdown("**Anomalous Items:**")
-                cols_show = [c for c in ["ingredient_name", "category", "quantity", "daily_consumption",
-                                          "anomaly_score", "anomaly_reason"] if c in anomalies.columns]
-                st.dataframe(anomalies[cols_show].sort_values("anomaly_score"), use_container_width=True)
+            if not anom.empty:
+                st.markdown('<div class="section-title">Flagged Items</div>', unsafe_allow_html=True)
+                show = [c for c in ["ingredient_name","category","quantity","daily_consumption","anomaly_reason"] if c in anom.columns]
+                disp = anom[show].copy()
+                disp.columns = [c.replace("_"," ").title() for c in disp.columns]
+                st.dataframe(disp, use_container_width=True, hide_index=True, height=350)
         else:
-            st.info("Anomaly detection results not available.")
+            st.info("Anomaly data not available.")
 
     # ── Tab 4: Chef Specials ───────────────────────────────────────────────────
-    with tabs[3]:
-        st.markdown("#### 👨‍🍳 AI Chef Specials Generator")
-        st.info("Select expiring ingredients and generate AI-powered dish suggestions.")
+    with t4:
+        st.markdown('<div class="section-title">👨‍🍳 Chef Specials Generator</div>', unsafe_allow_html=True)
+        st.caption("Select ingredients nearing expiry — AI will suggest dishes that use them up before they go to waste.")
 
-        # Auto-suggest from high risk items
-        if "risk_level_pred" in df_pred.columns:
-            suggested = (
-                df_pred[df_pred["risk_level_pred"].isin(["critical", "high"])]
-                ["ingredient_name"].unique().tolist()[:8]
-            )
-        else:
-            suggested = df_pred["ingredient_name"].unique().tolist()[:5]
+        suggested = []
+        if risk_col in df_pred.columns:
+            suggested = df_pred[df_pred[risk_col].isin(["critical","high"])]["ingredient_name"].unique().tolist()[:5]
 
-        col_cs1, col_cs2 = st.columns([2, 1])
-        with col_cs1:
-            selected_ingredients = st.multiselect(
-                "Select Expiring Ingredients",
+        col_l, col_r = st.columns([3, 1])
+        with col_l:
+            selected = st.multiselect(
+                "Expiring Ingredients",
                 options=df_pred["ingredient_name"].unique().tolist(),
                 default=suggested[:4],
+                help="Pick the ingredients you need to use up urgently"
             )
-            cuisine = st.text_input("Cuisine Preference (optional)", placeholder="e.g. Indian, Italian, Asian...")
-            n_dishes = st.slider("Number of Suggestions", 1, 5, 3)
-
-        with col_cs2:
-            dietary = st.multiselect(
-                "Dietary Restrictions",
-                ["Vegetarian", "Vegan", "Gluten-Free", "Dairy-Free", "Nut-Free"],
-            )
+            cuisine = st.text_input("Cuisine Preference", placeholder="e.g. Indian, Italian, Asian, Fusion...")
+        with col_r:
+            n_dishes = st.slider("No. of Dishes", 1, 5, 3)
+            dietary  = st.multiselect("Dietary", ["Vegetarian","Vegan","Gluten-Free","Dairy-Free"])
 
         if st.button("✨ Generate Chef Specials", type="primary"):
-            if not selected_ingredients:
+            if not selected:
                 st.warning("Please select at least one ingredient.")
             else:
-                with st.spinner("Generating Chef Specials with AI..."):
+                with st.spinner("AI is creating dishes for you..."):
                     try:
-                        import os
-                        groq_key = st.secrets.get("GROQ_API_KEY", "") or os.environ.get("GROQ_API_KEY", "")
+                        groq_key = get_groq_key()
                         os.environ["GROQ_API_KEY"] = groq_key
-                        st.caption(f"🔑 Key loaded: {'Yes ✅' if groq_key else 'No ❌'} | Length: {len(groq_key)}")
+
                         from src.recommendations.chef_specials import ChefSpecialsEngine
-                        chef = ChefSpecialsEngine()
-                        knowledge = rag.get_ingredient_knowledge(selected_ingredients[:6])
-                        ctx = " | ".join(k["text"] for k in knowledge[:3]) if knowledge else None
+                        chef   = ChefSpecialsEngine()
+                        know   = rag.get_ingredient_knowledge(selected[:6])
+                        ctx    = " | ".join(k["text"] for k in know[:3]) if know else None
                         result = chef.generate(
-                            ingredients=selected_ingredients,
+                            ingredients=selected,
                             cuisine_preference=cuisine or None,
                             dietary_restrictions=dietary or None,
                             n_suggestions=n_dishes,
@@ -379,130 +498,119 @@ def main():
                         )
 
                         if result.get("_source") == "fallback":
-                            st.warning("⚠️ Using fallback suggestions (AI key not configured)")
+                            st.warning("⚠️ Using template suggestions — add GROQ_API_KEY in app secrets for AI-generated dishes.")
                         else:
-                            st.success("✅ Generated using AI")
+                            st.success("✅ Dishes generated by AI")
 
-                        # Display specials
-                        for i, special in enumerate(result.get("chef_specials", [])):
-                            urgency_colors = {
-                                "use_today": "🔴",
-                                "use_within_2_days": "🟠",
-                                "use_this_week": "🟡",
-                            }
-                            urgency_icon = urgency_colors.get(special.get("urgency", ""), "🟢")
+                        urgency_icon = {"use_today":"🔴","use_within_2_days":"🟠","use_this_week":"🟡"}
 
-                            with st.expander(
-                                f"{urgency_icon} {special.get('name', f'Dish {i+1}')} "
-                                f"({special.get('prep_time_minutes', '?')} min)",
-                                expanded=(i == 0),
-                            ):
-                                col_d1, col_d2 = st.columns([2, 1])
-                                with col_d1:
-                                    st.markdown(f"**Description:** {special.get('description', '')}")
-                                    st.markdown(f"**Ingredients Used:** {', '.join(special.get('ingredients_used', []))}")
-                                    st.markdown(f"**Why this helps:** {special.get('waste_reduction_rationale', '')}")
-                                with col_d2:
-                                    st.markdown(f"**💡 Storage Tip:** {special.get('storage_tip', '')}")
-                                    st.markdown(f"**Urgency:** {special.get('urgency', '').replace('_', ' ').title()}")
+                        for special in result.get("chef_specials", []):
+                            icon = urgency_icon.get(special.get("urgency",""), "🟢")
+                            urgency_label = special.get("urgency","").replace("_"," ").title()
+                            with st.expander(f"{icon} **{special.get('name','')}** — {special.get('prep_time_minutes','?')} min | {urgency_label}", expanded=True):
+                                c1, c2 = st.columns([2,1])
+                                with c1:
+                                    st.markdown(f"**About this dish**")
+                                    st.markdown(special.get("description",""))
+                                    st.markdown(f"**🥬 Ingredients used:** {', '.join(special.get('ingredients_used',[]))}")
+                                    st.markdown(f"**♻️ Why it reduces waste:** {special.get('waste_reduction_rationale','')}")
+                                with c2:
+                                    st.info(f"💡 **Storage Tip**\n\n{special.get('storage_tip','')}")
 
-                        if "general_recommendation" in result:
-                            st.info(f"💬 **Overall Recommendation:** {result['general_recommendation']}")
-                        if "estimated_waste_reduction_pct" in result:
+                        if result.get("general_recommendation"):
+                            st.markdown("---")
+                            st.markdown(f"**📋 Overall Strategy:** {result['general_recommendation']}")
+
+                        if result.get("estimated_waste_reduction_pct"):
                             st.metric("Estimated Waste Reduction", f"{result['estimated_waste_reduction_pct']}%")
 
-                        # Show RAG knowledge used
-                        if knowledge:
-                            with st.expander("📚 Knowledge Base Used"):
-                                for k in knowledge[:3]:
+                        if know:
+                            with st.expander("📚 Knowledge base used"):
+                                for k in know[:3]:
                                     st.markdown(f"- {k['text']}")
 
                     except Exception as e:
-                        st.error(f"Error generating specials: {e}")
+                        st.error(f"Error: {e}")
 
     # ── Tab 5: Explainability ──────────────────────────────────────────────────
-    with tabs[4]:
-        st.markdown("#### 🔬 Model Explainability")
+    with t5:
+        st.markdown('<div class="section-title">Why is an Item Risky?</div>', unsafe_allow_html=True)
 
-        col_ex1, col_ex2 = st.columns(2)
-        with col_ex1:
-            st.markdown("**Feature Importance (XGBoost + LightGBM Ensemble)**")
-            fi_df = wastage.get_feature_importance()
-            if not fi_df.empty:
-                fig_fi = px.bar(
-                    fi_df.head(12), x="importance", y="feature",
-                    orientation="h", title="Top Predictive Features",
-                    color="importance", color_continuous_scale="Viridis",
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown("**Feature Importance — What drives waste predictions**")
+            fi = wastage.get_feature_importance()
+            if not fi.empty:
+                fi_top = fi.head(10).copy()
+                fi_top["feature"] = fi_top["feature"].str.replace("_", " ").str.title()
+                fig_fi = px.bar(fi_top, x="importance", y="feature", orientation="h",
+                                color="importance", color_continuous_scale="Viridis",
+                                labels={"importance":"Importance Score","feature":"Feature"})
+                fig_fi.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    font_color="#a0aec0", yaxis=dict(autorange="reversed", gridcolor="#2d3748"),
+                    xaxis=dict(gridcolor="#2d3748"), coloraxis_showscale=False,
+                    margin=dict(t=10, b=20)
                 )
-                fig_fi.update_layout(yaxis=dict(autorange="reversed"))
                 st.plotly_chart(fig_fi, use_container_width=True)
 
-        with col_ex2:
-            st.markdown("**Item-Level Risk Explanation**")
-            if len(df_pred) > 0:
-                item_options = df_pred["ingredient_name"].tolist()
-                sel_item = st.selectbox("Select Item to Explain", item_options[:50])
-                sel_df = df_pred[df_pred["ingredient_name"] == sel_item].head(1)
+        with col_b:
+            st.markdown("**Item-Level Explanation**")
+            sel = st.selectbox("Choose an ingredient to explain", df_pred["ingredient_name"].tolist()[:60])
+            row_df = df_pred[df_pred["ingredient_name"] == sel].head(1)
+            if not row_df.empty:
+                shap_exp = wastage.explain(row_df, max_items=1)
+                from src.explainability.explainer import explain_item_risk
+                expl = explain_item_risk(row_df.iloc[0], shap_exp[0]["top_features"] if shap_exp else None)
 
-                if not sel_df.empty:
-                    shap_exp = wastage.explain(sel_df, max_items=1)
-                    from src.explainability.explainer import explain_item_risk
-                    row = sel_df.iloc[0]
-                    explanation = explain_item_risk(
-                        row,
-                        shap_exp[0]["top_features"] if shap_exp else None
-                    )
+                risk_colors = {"critical":"#fc5c7d","high":"#f7971e","medium":"#f6d365","low":"#56ab2f"}
+                lvl = expl["risk_level"]
+                color = risk_colors.get(lvl, "#a0aec0")
+                st.markdown(f"**Risk Level:** <span style='color:{color};font-weight:700;font-size:1.1rem'>{lvl.upper()}</span> &nbsp; Score: `{expl['risk_score']:.2f}`", unsafe_allow_html=True)
+                st.markdown(f"**Primary Reason:** {expl['primary_reason']}")
+                if len(expl.get("all_reasons", [])) > 1:
+                    with st.expander("All reasons"):
+                        for r in expl["all_reasons"]:
+                            st.markdown(f"- {r}")
+                st.success(f"**Recommended Action:** {expl['recommended_action']}")
 
-                    st.metric("Risk Score", f"{explanation['risk_score']:.3f}")
-                    st.metric("Risk Level", explanation["risk_level"].upper())
-                    st.markdown(f"**Primary Reason:** {explanation['primary_reason']}")
-                    st.markdown("**All Reasons:**")
-                    for reason in explanation["all_reasons"]:
-                        st.markdown(f"  - {reason}")
-                    st.info(f"**Recommended Action:** {explanation['recommended_action']}")
-
-        # Model metrics
         st.markdown("---")
-        st.markdown("**Model Performance Metrics**")
+        st.markdown('<div class="section-title">Model Performance</div>', unsafe_allow_html=True)
         metrics = wastage.metrics
         if metrics:
-            m_cols = st.columns(len(metrics))
-            for i, (k, v) in enumerate(metrics.items()):
-                if isinstance(v, (int, float)):
-                    m_cols[i].metric(k.replace("_", " ").title(), f"{v:.4f}" if isinstance(v, float) else v)
+            cols = st.columns(len([k for k,v in metrics.items() if isinstance(v, float)]))
+            i = 0
+            for k, v in metrics.items():
+                if isinstance(v, float):
+                    cols[i].metric(k.replace("_"," ").title(), f"{v:.3f}")
+                    i += 1
 
     # ── Tab 6: Raw Data ────────────────────────────────────────────────────────
-    with tabs[5]:
-        st.markdown("#### 🗄️ Raw Inventory Data")
-        st.markdown(f"**{len(df_pred)} records** | Data Quality Score: **{quality.get('data_quality_pct', 100):.1f}%**")
+    with t6:
+        st.markdown('<div class="section-title">Inventory Data</div>', unsafe_allow_html=True)
 
-        if st.checkbox("Show quality report"):
-            st.json(quality)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Records",      f"{len(df_pred):,}")
+        c2.metric("Data Quality",       f"{quality.get('data_quality_pct',100):.1f}%")
+        c3.metric("Issues Auto-Fixed",  sum(v for v in quality.get("issues",{}).values() if isinstance(v,int)))
 
-        # Filter controls
-        risk_filter = st.multiselect(
-            "Filter by Risk Level",
-            ["critical", "high", "medium", "low"],
-            default=["critical", "high"],
-        )
-        if risk_filter and "risk_level_pred" in df_pred.columns:
-            display_df = df_pred[df_pred["risk_level_pred"].isin(risk_filter)]
-        else:
-            display_df = df_pred
+        risk_filter = st.multiselect("Filter by Risk", ["critical","high","medium","low"], default=["critical","high"])
+        disp_df = df_pred[df_pred[risk_col].isin(risk_filter)] if risk_filter and risk_col in df_pred.columns else df_pred
 
+        show_cols = [c for c in ["ingredient_name","category","restaurant","quantity","unit",
+                                  "days_to_expiry","waste_probability",risk_col,"potential_waste_value"] if c in disp_df.columns]
+        out = disp_df[show_cols].copy()
+        if "waste_probability" in out.columns:
+            out["waste_probability"] = out["waste_probability"].apply(lambda x: f"{x:.1%}")
+        if "potential_waste_value" in out.columns:
+            out["potential_waste_value"] = out["potential_waste_value"].apply(lambda x: f"₹{x:,.0f}")
+        out.columns = [c.replace("_"," ").title() for c in out.columns]
+
+        st.dataframe(out, use_container_width=True, height=450, hide_index=True)
         st.download_button(
-            "📥 Download as CSV",
-            data=display_df.to_csv(index=False),
-            file_name=f"ecomeal_inventory_{date.today().isoformat()}.csv",
-            mime="text/csv",
+            "📥 Download CSV", data=disp_df.to_csv(index=False),
+            file_name=f"ecomeal_inventory_{date.today()}.csv", mime="text/csv"
         )
-
-        display_cols = [c for c in [
-            "item_id", "restaurant", "ingredient_name", "category", "quantity", "unit",
-            "days_to_expiry", "waste_probability", "risk_level_pred", "potential_waste_value",
-            "anomaly_score",
-        ] if c in display_df.columns]
-        st.dataframe(display_df[display_cols], use_container_width=True, height=500)
 
 
 if __name__ == "__main__":
