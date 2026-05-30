@@ -272,15 +272,16 @@ def load_models():
     rag        = RAGRecommendationEngine()
 
     if needs_train:
-        df_raw = generate_inventory_dataset(n_records=settings.dataset_size, seed=settings.random_seed)
+        # Use smaller dataset for faster cold-start (~8s vs ~25s)
+        df_raw = generate_inventory_dataset(n_records=600, seed=settings.random_seed)
         df, _  = clean_inventory(df_raw)
         df     = encode_categoricals(df)
 
         wastage.train(df);    wastage.save()
         anomaly.fit(df);      anomaly.save()
 
-        ingredients = df["ingredient_name"].unique().tolist()[:30]
-        demand_df   = generate_demand_history(ingredients=ingredients, n_days=180)
+        ingredients = df["ingredient_name"].unique().tolist()[:20]
+        demand_df   = generate_demand_history(ingredients=ingredients, n_days=90)
         forecaster.fit(demand_df); forecaster.save()
 
         version_file.write_text(_MODEL_VERSION)

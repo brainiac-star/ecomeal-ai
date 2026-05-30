@@ -73,9 +73,9 @@ class WastagePredictor:
         # ── XGBoost ───────────────────────────────────────────────────────────
         scale_pos_weight = (y_train == 0).sum() / max((y_train == 1).sum(), 1)
         self.xgb_model = xgb.XGBClassifier(
-            n_estimators=300,
-            max_depth=6,
-            learning_rate=0.05,
+            n_estimators=150,
+            max_depth=5,
+            learning_rate=0.08,
             subsample=0.8,
             colsample_bytree=0.8,
             scale_pos_weight=scale_pos_weight,
@@ -92,9 +92,9 @@ class WastagePredictor:
 
         # ── LightGBM ──────────────────────────────────────────────────────────
         self.lgb_model = lgb.LGBMClassifier(
-            n_estimators=300,
-            max_depth=6,
-            learning_rate=0.05,
+            n_estimators=150,
+            max_depth=5,
+            learning_rate=0.08,
             subsample=0.8,
             colsample_bytree=0.8,
             class_weight="balanced",
