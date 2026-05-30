@@ -303,9 +303,8 @@ def main():
             with col_an1:
                 st.metric("Total Anomalies", len(anomalies))
                 st.metric("Anomaly Rate", f"{len(anomalies)/len(df_pred)*100:.1f}%")
-                if "anomaly_score" in df_pred.columns:
-                    st.metric("Avg Anomaly Score", f"{anomalies['anomaly_score'].mean():.4f}",
-                              help="Lower = more anomalous. Normal items score near 0, anomalies score below -0.5")
+                st.metric("Severity", "High" if not anomalies.empty and anomalies.get("anomaly_score", pd.Series()).mean() < -0.6 else "Medium",
+                          help="How unusual the flagged items are compared to normal inventory")
 
             with col_an2:
                 if "anomaly_score" in df_pred.columns and len(df_pred) > 0:
