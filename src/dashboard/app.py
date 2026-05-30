@@ -682,37 +682,37 @@ def main():
                     unsafe_allow_html=True,
                 )
 
-                # ── Plain-English explanation (always visible) ─────────────────
-                nl_sentence = _nl_explain_row(row)
+                # ── SHAP summary sentence (model output) ──────────────────────
+                shap_summary = shap_exp[0].get("summary_sentence") if shap_exp else None
+                display_sentence = shap_summary or _nl_explain_row(row)
+                source_label = "Model explanation" if shap_summary else "Rule-based explanation"
                 st.markdown(f"""
 <div class="nl-card">
-  <div class="nl-label">What this means</div>
-  {nl_sentence}
+  <div class="nl-label">{source_label}</div>
+  {display_sentence}
 </div>""", unsafe_allow_html=True)
 
-                # ── Why factors (deduplicated — no contradictions) ─────────────
-                risk_sentences, safe_sentences = _nl_factor_sentences(row)
-                # Drop safe factors that contradict a risk factor on the same concept
-                risk_set = set(risk_sentences)
-                _CONTRADICTING_PAIRS = [
-                    ("Stock will last", "Current stock will last"),
-                    ("days of stock", "days worth"),
-                ]
-                safe_sentences = [
-                    s for s in safe_sentences
-                    if not any(
-                        any(kw in s and any(kw in r for r in risk_set) for kw in pair)
-                        for pair in _CONTRADICTING_PAIRS
-                    )
-                ]
+                # ── SHAP factor sentences (model-driven, deduplicated) ─────────
+                if shap_exp:
+                    from src.models.wastage_predictor import _deduplicate_factors
+                    top = shap_exp[0].get("top_features", [])
+                    risk_factors, safe_factors = _deduplicate_factors(top)
+                    risk_sentences = [f["natural_language"] for f in risk_factors if f.get("natural_language")]
+                    safe_sentences = [f["natural_language"] for f in safe_factors if f.get("natural_language")]
+                else:
+                    # Fallback: rule-based if SHAP unavailable
+                    risk_sentences, safe_sentences = _nl_factor_sentences(row)
+
                 if risk_sentences:
-                    with st.expander("🔴 Why it's at risk", expanded=True):
+                    with st.expander("🔴 Why the model flagged this item", expanded=True):
                         for s in risk_sentences:
                             st.markdown(f"- {s}")
                 if safe_sentences:
-                    with st.expander("🟢 What's working in its favour"):
+                    with st.expander("🟢 What's reducing the risk"):
                         for s in safe_sentences:
                             st.markdown(f"- {s}")
+                if not risk_sentences and not safe_sentences:
+                    st.caption("No dominant risk factors detected by the model for this item.")
 
                 st.success(f"✅ **Recommended Action:** {expl['recommended_action']}")
 
