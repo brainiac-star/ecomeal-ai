@@ -489,42 +489,56 @@ def main():
                             hovermode="x unified", legend=dict(font=dict(color="#a0aec0")),
                             margin=dict(t=50, b=20)
                         )
-                        st.plotly_chart(fig_fc, use_container_width=True)
-
-                        c1, c2, c3 = st.columns(3)
-                        c1.metric("Peak Demand",    f"{fc['yhat'].max():.1f} units")
-                        c2.metric("Daily Average",  f"{fc['yhat'].mean():.1f} units")
-                        c3.metric("Total Forecast", f"{fc['yhat'].sum():.1f} units")
+                        st.session_state["fc_fig"] = fig_fc
+                        st.session_state["fc_metrics"] = {
+                            "peak": fc["yhat"].max(),
+                            "avg": fc["yhat"].mean(),
+                            "total": fc["yhat"].sum(),
+                        }
+                        st.session_state["fc_ingredient"] = ingredient
                     except Exception as e:
                         st.error(f"Forecast failed: {e}")
 
+            if "fc_fig" in st.session_state:
+                st.plotly_chart(st.session_state["fc_fig"], use_container_width=True)
+                m = st.session_state["fc_metrics"]
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Peak Demand",    f"{m['peak']:.1f} units")
+                c2.metric("Daily Average",  f"{m['avg']:.1f} units")
+                c3.metric("Total Forecast", f"{m['total']:.1f} units")
+
         st.markdown("---")
         st.markdown('<div class="section-title">📦 Overstock & Shortage Detection</div>', unsafe_allow_html=True)
+
         if st.button("🔎 Run Overstock Analysis"):
-            with st.spinner("Analysing stock levels vs forecasted demand..."):
+            with st.spinner("Analysing stock levels vs forecasted demand (this may take ~20s)..."):
                 try:
                     os_df = forecaster.detect_overstock(df_pred, horizon_days=14)
-                    over  = os_df[os_df["overstock_risk"]]
-                    short = os_df[os_df["shortage_risk"]]
-                    col_o, col_s = st.columns(2)
-                    with col_o:
-                        st.markdown(f"**🔴 Overstock Items ({len(over)})**")
-                        if not over.empty:
-                            disp = over[["ingredient_name","current_quantity","overstock_quantity"]].copy()
-                            disp.columns = ["Ingredient","Current Stock","Excess Qty"]
-                            st.dataframe(disp, use_container_width=True, hide_index=True)
-                        else:
-                            st.success("No overstock detected!")
-                    with col_s:
-                        st.markdown(f"**🟡 Shortage Risk Items ({len(short)})**")
-                        if not short.empty:
-                            disp = short[["ingredient_name","current_quantity","shortage_quantity"]].copy()
-                            disp.columns = ["Ingredient","Current Stock","Shortfall"]
-                            st.dataframe(disp, use_container_width=True, hide_index=True)
-                        else:
-                            st.success("No shortage risks detected!")
+                    st.session_state["os_df"] = os_df
                 except Exception as e:
                     st.error(f"Analysis failed: {e}")
+
+        if "os_df" in st.session_state:
+            os_df = st.session_state["os_df"]
+            over  = os_df[os_df["overstock_risk"]]
+            short = os_df[os_df["shortage_risk"]]
+            col_o, col_s = st.columns(2)
+            with col_o:
+                st.markdown(f"**🔴 Overstock Items ({len(over)})**")
+                if not over.empty:
+                    disp = over[["ingredient_name","current_quantity","overstock_quantity"]].copy()
+                    disp.columns = ["Ingredient","Current Stock","Excess Qty"]
+                    st.dataframe(disp, use_container_width=True, hide_index=True)
+                else:
+                    st.success("No overstock detected!")
+            with col_s:
+                st.markdown(f"**🟡 Shortage Risk Items ({len(short)})**")
+                if not short.empty:
+                    disp = short[["ingredient_name","current_quantity","shortage_quantity"]].copy()
+                    disp.columns = ["Ingredient","Current Stock","Shortfall"]
+                    st.dataframe(disp, use_container_width=True, hide_index=True)
+                else:
+                    st.success("No shortage risks detected!")
 
     # ── Tab 3: Anomalies ───────────────────────────────────────────────────────
     with t3:
@@ -685,28 +699,34 @@ def main():
                     unsafe_allow_html=True,
                 )
 
-                # ── SHAP summary sentence (model output) ──────────────────────
-                shap_summary = shap_exp[0].get("summary_sentence") if shap_exp else None
-                display_sentence = shap_summary or _nl_explain_row(row)
-                source_label = "Model explanation" if shap_summary else "Rule-based explanation"
+                # ── Summary sentence: always use value-specific rule-based explanation ──
+                display_sentence = _nl_explain_row(row)
+                source_label = "Model explanation" if shap_exp else "Rule-based explanation"
                 st.markdown(f"""
 <div class="nl-card">
   <div class="nl-label">{source_label}</div>
   {display_sentence}
 </div>""", unsafe_allow_html=True)
 
-                # ── SHAP factor sentences (model-driven) ──────────────────────
+                # ── SHAP factor sentences (model-driven, value-specific) ──────
+                # Use SHAP to determine which factors matter; use value-specific
+                # sentences from row data so users see actual numbers.
+                rule_risk, rule_safe = _nl_factor_sentences(row)
                 if shap_exp:
                     top = shap_exp[0].get("top_features", [])
                     risk_factors, safe_factors = _deduplicate_factors(top)
-                    risk_sentences = [f["natural_language"] for f in risk_factors if f.get("natural_language")]
-                    safe_sentences = [f["natural_language"] for f in safe_factors if f.get("natural_language")]
-                    # If deduplication removed everything, show raw top features
-                    if not risk_sentences and not safe_sentences:
-                        risk_sentences = [f["natural_language"] for f in top[:3] if f.get("natural_language") and f["direction"] == "increases_risk"]
-                        safe_sentences  = [f["natural_language"] for f in top[:3] if f.get("natural_language") and f["direction"] == "decreases_risk"]
+                    # If model identified risk factors, use rule sentences (specific values)
+                    # but only show them when SHAP confirms risk direction
+                    if risk_factors:
+                        risk_sentences = rule_risk if rule_risk else [f["natural_language"] for f in risk_factors if f.get("natural_language")]
+                    else:
+                        risk_sentences = rule_risk
+                    if safe_factors:
+                        safe_sentences = rule_safe if rule_safe else [f["natural_language"] for f in safe_factors if f.get("natural_language")]
+                    else:
+                        safe_sentences = rule_safe
                 else:
-                    risk_sentences, safe_sentences = _nl_factor_sentences(row)
+                    risk_sentences, safe_sentences = rule_risk, rule_safe
 
                 if risk_sentences:
                     with st.expander("🔴 Why the model flagged this item", expanded=True):
