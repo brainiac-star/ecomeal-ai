@@ -57,8 +57,8 @@ def load_models():
     wastage = WastagePredictor()
     forecaster = DemandForecaster()
     anomaly = InventoryAnomalyDetector()
-    chef = ChefSpecialsEngine()
     rag = RAGRecommendationEngine()
+    chef = None  # initialized lazily so Streamlit secrets are available
 
     model_loaded = wastage.load() and anomaly.load()
     forecaster_loaded = forecaster.load()
@@ -81,7 +81,7 @@ def load_models():
         forecaster.fit(demand_df)
         forecaster.save()
 
-    return wastage, forecaster, anomaly, chef, rag
+    return wastage, forecaster, anomaly, None, rag
 
 
 @st.cache_data(show_spinner="Generating inventory data...")
@@ -108,7 +108,7 @@ def main():
 
     # Load models
     try:
-        wastage, forecaster, anomaly, chef, rag = load_models()
+        wastage, forecaster, anomaly, _chef, rag = load_models()
     except Exception as e:
         st.error(f"Failed to load models: {e}")
         st.stop()
@@ -360,8 +360,10 @@ def main():
             if not selected_ingredients:
                 st.warning("Please select at least one ingredient.")
             else:
-                with st.spinner("Generating Chef Specials with Claude AI..."):
+                with st.spinner("Generating Chef Specials with AI..."):
                     try:
+                        from src.recommendations.chef_specials import ChefSpecialsEngine
+                        chef = ChefSpecialsEngine()
                         knowledge = rag.get_ingredient_knowledge(selected_ingredients[:6])
                         ctx = " | ".join(k["text"] for k in knowledge[:3]) if knowledge else None
                         result = chef.generate(
