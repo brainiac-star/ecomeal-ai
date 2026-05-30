@@ -247,7 +247,7 @@ def _nl_factor_sentences(row: "pd.Series"):
 
 # ── Model loader ───────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
-def load_models(version: str = "v2"):  # bump version to bust cache
+def load_models(version: str = "v3"):  # bump version to bust cache
     from src.models.wastage_predictor import WastagePredictor
     from src.models.demand_forecaster import DemandForecaster
     from src.models.anomaly_detector import InventoryAnomalyDetector
@@ -687,7 +687,7 @@ def main():
 
         with col_b:
             st.markdown("**Item-Level Explanation**")
-            sel = st.selectbox("Choose an ingredient to explain", df_pred["ingredient_name"].tolist()[:60])
+            sel = st.selectbox("Choose an ingredient to explain", sorted(df_pred["ingredient_name"].unique().tolist()))
             row_df = df_pred[df_pred["ingredient_name"] == sel].head(1)
             if not row_df.empty:
                 row = row_df.iloc[0]
