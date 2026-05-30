@@ -124,13 +124,70 @@ Provider priority: **Groq** (free, llama-3.1-8b-instant) → **Gemini Flash** (f
 
 ---
 
+## Experimentation Process
+
+### What we tried and why we changed course
+
+**Label generation** — Initially used a hard threshold on `waste_risk_score >= 0.5` to create binary labels, which caused the model to perfectly memorise the rule and report 0.99 AUC. Injected 15% random label noise to force the model to learn from features rather than reverse-engineer the scoring formula.
+
+**SHAP explainability** — Started with `shap.TreeExplainer` (standard approach). It worked locally but raised an `ImportError` on Streamlit Cloud due to missing compiled extensions. Switched to LightGBM's native `pred_contrib=True` flag, which returns equivalent Shapley values without the external dependency. Normalised the log-odds contributions to `[−1, 1]` so direction is interpretable regardless of scale.
+
+**Contradictory explanations** — Early SHAP output showed both "stock will last longer than expiry" and "stock will be consumed in time" for the same item, because `stock_days_available`, `stock_expiry_ratio`, and `overstock_flag` are correlated features that can land on opposite sides. Fixed by grouping semantically related features and keeping only the dominant direction per group (`_deduplicate_factors()`).
+
+**Synthetic data realism** — First version used random multipliers for quantity and a uniform waste rate, producing 77% of items below their reorder point (impossible in real operation). Rebuilt the generator with restaurant management profiles (order frequency, management quality) and category-specific order cycles so quantities follow a realistic batch-minus-consumed curve.
+
+**Model startup on Streamlit Cloud** — Initially retrained models on every cold start (~25s). Moved to committing trained model files to git so the app loads from disk in ~2–3s on any deployment.
+
+---
+
+## Scalability Considerations
+
+**Data scale** — The current pipeline trains on 1,200 synthetic records. The XGBoost/LightGBM ensemble and Isolation Forest scale to millions of rows with no architectural changes — only training time grows linearly. Prophet is per-ingredient and runs independently, so adding ingredients scales horizontally.
+
+**Inference throughput** — The FastAPI layer is stateless. The model registry (`src/api/state.py`) loads models once at startup via the lifespan hook. Under load, multiple Uvicorn workers share nothing and can be scaled behind a load balancer without coordination.
+
+**Caching** — Streamlit uses `@st.cache_resource` for model objects (loaded once per process) and `@st.cache_data` for data frames (keyed on inputs, TTL-based). The API layer can front a Redis cache for repeated identical requests — the `docker-compose.yml` includes a Redis service ready to wire in.
+
+**LLM calls** — Chef Specials use async requests with `tenacity` retry. In production, results would be cached by `(ingredients_hash, restaurant_id)` to avoid redundant LLM calls for the same expiring stock.
+
+**Monitoring** — Prometheus counters and histograms (`src/monitoring/metrics.py`) are instrumented for prediction latency, anomaly counts, and LLM call outcomes, making it straightforward to set up autoscaling triggers.
+
+---
+
+## Tradeoffs Made
+
+| Decision | What we chose | What we gave up | Why |
+|---|---|---|---|
+| Data source | Synthetic generation | Real restaurant POS data | No access to real data; synthetic lets us control the risk distribution and inject known edge cases |
+| Dataset size | 1,200 records | Larger scale | Sufficient for tree ensembles; Prophet needs per-ingredient series, not global rows |
+| Explainability | LGBMnative `pred_contrib` | `shap` package | Eliminates a deployment dependency that fails on restricted cloud environments |
+| Label construction | Rule-based score + noise | Human-labelled waste events | No ground-truth waste labels available; rule + noise prevents overfitting to the rule |
+| LLM provider | Groq (free tier) primary | GPT-4 / Claude | Zero cost, sub-second latency, sufficient quality for recipe suggestions |
+| Model serving | Committed pkl files in git | S3 / model registry | Simplest path to Streamlit Cloud deployment; acceptable for a sub-10MB model |
+| Dashboard framework | Streamlit | React/Next.js | Faster iteration; the audience is data/ops teams, not consumers |
+| Forecasting | Prophet per ingredient | Global LSTM | Prophet handles missing data and sparse series without tuning; LSTM needs dense history |
+
+---
+
+## Future Improvements
+
+- **Real data ingestion** — Replace synthetic generator with a connector to a POS system (e.g. Square, Lightspeed) or an ERP inventory feed. The preprocessor and model pipeline require no changes.
+- **Online learning** — Retrain the wastage predictor nightly on the last 90 days of actuals using the existing `scripts/train.py` CLI, triggered by a cron job or Airflow DAG.
+- **Supplier integration** — Add a supplier lead-time table so reorder suggestions account for actual delivery windows, not a fixed assumption.
+- **Multi-tenant isolation** — Partition models and data by restaurant ID. Each restaurant would get its own Prophet models (already per-ingredient) and a fine-tuned wastage classifier.
+- **Cost optimisation loop** — Surface the `potential_waste_value` metric to the Chef Specials prompt so the LLM prioritises high-value expiring ingredients in dish suggestions.
+- **Alerting** — Wire the anomaly detector output to a Slack/email webhook so kitchen managers are notified in real time when a critical anomaly is flagged, rather than waiting for the next dashboard refresh.
+- **A/B testing framework** — Track whether acting on a waste prediction actually reduced wastage. Close the feedback loop by logging prediction vs outcome and feeding actuals back into retraining.
+
+---
+
 ## Explainability
 
 Three layers:
 
-1. **SHAP (TreeExplainer on LightGBM)** — per-item feature impact values
-2. **Natural language sentences** — each SHAP factor translated to plain English (e.g. *"Very few days remain before this item expires, pushing waste risk up."*)
-3. **Rule-based summary** — domain logic sentences always visible regardless of SHAP availability
+1. **LightGBM native `pred_contrib`** — per-item Shapley-equivalent feature contributions, computed without the `shap` package (which fails on restricted cloud environments)
+2. **Natural language sentences** — each factor translated to plain English with actual values (e.g. *"Stock will last 18 days but the item expires in 5 — 13 extra days of surplus."*)
+3. **Rule-based fallback** — domain logic sentences always visible even if the ML model is unavailable
 
 ---
 
