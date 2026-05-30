@@ -217,7 +217,7 @@ Full interactive docs at `/docs` (Swagger UI).
 |---|---|---|
 | `GROQ_API_KEY` | — | **Recommended** — free at console.groq.com, uses llama-3.1-8b-instant |
 | `GEMINI_API_KEY` | — | Google Gemini Flash — free at aistudio.google.com |
-| `ANTHROPIC_API_KEY` | — | Hosted LLM provider (optional) |
+| `LLM_API_KEY` | — | Optional hosted LLM provider key |
 | `OLLAMA_MODEL` | `llama3` | Ollama local model — no key needed |
 | `APP_ENV` | `development` | Environment |
 | `DATASET_SIZE` | `1200` | Synthetic dataset size |
