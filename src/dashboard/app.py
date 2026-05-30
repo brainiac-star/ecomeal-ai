@@ -365,6 +365,7 @@ def main():
                         import os
                         groq_key = st.secrets.get("GROQ_API_KEY", "") or os.environ.get("GROQ_API_KEY", "")
                         os.environ["GROQ_API_KEY"] = groq_key
+                        st.caption(f"🔑 Key loaded: {'Yes ✅' if groq_key else 'No ❌'} | Length: {len(groq_key)}")
                         from src.recommendations.chef_specials import ChefSpecialsEngine
                         chef = ChefSpecialsEngine()
                         knowledge = rag.get_ingredient_knowledge(selected_ingredients[:6])

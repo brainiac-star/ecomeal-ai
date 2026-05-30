@@ -17,9 +17,9 @@ statsmodels>=0.14.0
 prophet>=1.1.5
 
 # AI / LLM providers (install whichever you use)
-anthropic>=0.39.0          # Claude (paid)
-groq>=0.9.0                # Groq — free tier, fastest
-google-generativeai>=0.8.0 # Gemini Flash — free tier
+anthropic>=0.39.0
+groq>=0.9.0
+google-generativeai>=0.8.0
 
 # NLP / Embeddings (RAG)
 sentence-transformers>=2.2.0
