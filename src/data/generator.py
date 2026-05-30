@@ -233,7 +233,11 @@ def generate_inventory_dataset(
 
         row["waste_risk_score"] = _compute_waste_risk(pd.Series(row))
         row["risk_level"] = _risk_label(row["waste_risk_score"])
-        row["will_waste"] = int(row["waste_risk_score"] >= 0.45)
+        # Add 15% label noise to simulate real-world uncertainty
+        if np.random.random() < 0.15:
+            row["will_waste"] = int(np.random.random() < 0.5)
+        else:
+            row["will_waste"] = int(row["waste_risk_score"] >= 0.45)
 
         rows.append(row)
 

@@ -576,14 +576,21 @@ def main():
 
         st.markdown("---")
         st.markdown('<div class="section-title">Model Performance</div>', unsafe_allow_html=True)
+        st.caption("Measured on a held-out 20% validation set during training.")
         metrics = wastage.metrics
         if metrics:
-            cols = st.columns(len([k for k,v in metrics.items() if isinstance(v, float)]))
-            i = 0
-            for k, v in metrics.items():
-                if isinstance(v, float):
-                    cols[i].metric(k.replace("_"," ").title(), f"{v:.3f}")
-                    i += 1
+            metric_info = {
+                "roc_auc":       ("ROC-AUC",    "How well the model separates risky vs safe items. 1.0 = perfect, 0.5 = random guess."),
+                "f1":            ("F1 Score",   "Balance between catching all risky items and not over-flagging safe ones."),
+                "precision":     ("Precision",  "Of items flagged as risky, what % actually are risky."),
+                "recall":        ("Recall",     "Of all truly risky items, what % the model correctly caught."),
+                "avg_precision": ("Avg Precision", "Area under precision-recall curve. Good for imbalanced datasets."),
+            }
+            metric_cols = {k: v for k, v in metrics.items() if isinstance(v, float)}
+            cols = st.columns(len(metric_cols))
+            for i, (k, v) in enumerate(metric_cols.items()):
+                label, help_text = metric_info.get(k, (k.replace("_"," ").title(), ""))
+                cols[i].metric(label, f"{v:.3f}", help=help_text)
 
     # ── Tab 6: Raw Data ────────────────────────────────────────────────────────
     with t6:
