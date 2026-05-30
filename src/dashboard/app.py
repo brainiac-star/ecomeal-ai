@@ -117,7 +117,7 @@ section[data-testid="stSidebar"] .stSlider label { color: #a0aec0; }
 
 # ── Model loader ───────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
-def load_models():
+def load_models(version: str = "v2"):  # bump version to bust cache
     from src.models.wastage_predictor import WastagePredictor
     from src.models.demand_forecaster import DemandForecaster
     from src.models.anomaly_detector import InventoryAnomalyDetector
