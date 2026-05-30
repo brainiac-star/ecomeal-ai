@@ -108,12 +108,8 @@ class WastagePredictor:
             callbacks=[lgb.early_stopping(50, verbose=False), lgb.log_evaluation(-1)],
         )
 
-        # ── SHAP explainer — use LightGBM which has no version issue ─────────
-        try:
-            self.shap_explainer = shap.TreeExplainer(self.lgb_model)
-        except Exception as e:
-            logger.warning(f"SHAP explainer init failed: {e}, continuing without SHAP")
-            self.shap_explainer = None
+        # ── Mark explainer ready — use LightGBM native pred_contrib ─────────
+        self.shap_explainer = True  # sentinel: lgb_model.predict with pred_contrib
 
         # ── Metrics ───────────────────────────────────────────────────────────
         y_prob = self._ensemble_proba(X_val)
@@ -156,17 +152,21 @@ class WastagePredictor:
         return pd.DataFrame(predictions)
 
     def explain(self, df: pd.DataFrame, max_items: int = 5) -> List[Dict[str, Any]]:
-        """Return SHAP-based explanations with plain-English sentences per item."""
-        if self.shap_explainer is None:
+        """Return feature contribution explanations with plain-English sentences per item.
+
+        Uses LightGBM's native pred_contrib (leaf-based SHAP values) — no external
+        shap package dependency, works reliably across all environments.
+        """
+        if self.lgb_model is None:
             return []
 
         X = self._prepare_features(df).head(max_items)
         try:
-            sv_all = self.shap_explainer.shap_values(X)
-            if isinstance(sv_all, list):
-                sv_all = sv_all[1]  # class 1 for binary LGB
+            # pred_contrib returns shape (n, n_features + 1); last col is bias
+            contribs = self.lgb_model.predict(X, pred_contrib=True)
+            sv_all = contribs[:, :-1]  # drop bias column
         except Exception as e:
-            logger.warning(f"SHAP computation failed: {e}")
+            logger.warning(f"Feature contribution computation failed: {e}")
             return []
 
         explanations = []
@@ -219,10 +219,7 @@ class WastagePredictor:
             self.xgb_model = joblib.load(self.model_dir / "xgb_wastage.pkl")
             self.lgb_model = joblib.load(self.model_dir / "lgb_wastage.pkl")
             self.metrics = joblib.load(self.model_dir / "wastage_metrics.pkl")
-            try:
-                self.shap_explainer = shap.TreeExplainer(self.lgb_model)
-            except Exception:
-                self.shap_explainer = None
+            self.shap_explainer = True
             self.is_trained = True
             logger.info("Wastage predictor loaded successfully")
             return True
