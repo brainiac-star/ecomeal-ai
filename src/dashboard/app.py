@@ -246,8 +246,12 @@ def _nl_factor_sentences(row: "pd.Series"):
 
 
 # ── Model loader ───────────────────────────────────────────────────────────────
+_MODEL_VERSION = "v4"  # bump this to force retrain on next deploy
+
 @st.cache_resource(show_spinner=False)
-def load_models(version: str = "v4"):
+def load_models():
+    import joblib
+    from pathlib import Path
     from src.models.wastage_predictor import WastagePredictor
     from src.models.demand_forecaster import DemandForecaster
     from src.models.anomaly_detector import InventoryAnomalyDetector
@@ -255,24 +259,37 @@ def load_models(version: str = "v4"):
     from src.data.generator import generate_inventory_dataset, generate_demand_history
     from src.data.preprocessor import clean_inventory, encode_categoricals
 
-    df_raw = generate_inventory_dataset(n_records=settings.dataset_size, seed=settings.random_seed)
-    df, _  = clean_inventory(df_raw)
-    df     = encode_categoricals(df)
+    model_dir = Path(settings.model_dir)
+    model_dir.mkdir(parents=True, exist_ok=True)
+    version_file = model_dir / "model_version.txt"
 
-    wastage = WastagePredictor()
-    wastage.train(df)
+    saved_version = version_file.read_text().strip() if version_file.exists() else ""
+    needs_train = saved_version != _MODEL_VERSION
 
-    anomaly = InventoryAnomalyDetector()
-    anomaly.fit(df)
-
+    wastage    = WastagePredictor()
+    anomaly    = InventoryAnomalyDetector()
     forecaster = DemandForecaster()
-    ingredients = df["ingredient_name"].unique().tolist()[:30]
-    demand_df   = generate_demand_history(ingredients=ingredients, n_days=180)
-    forecaster.fit(demand_df)
+    rag        = RAGRecommendationEngine()
 
-    rag = RAGRecommendationEngine()
+    if needs_train:
+        df_raw = generate_inventory_dataset(n_records=settings.dataset_size, seed=settings.random_seed)
+        df, _  = clean_inventory(df_raw)
+        df     = encode_categoricals(df)
+
+        wastage.train(df);    wastage.save()
+        anomaly.fit(df);      anomaly.save()
+
+        ingredients = df["ingredient_name"].unique().tolist()[:30]
+        demand_df   = generate_demand_history(ingredients=ingredients, n_days=180)
+        forecaster.fit(demand_df); forecaster.save()
+
+        version_file.write_text(_MODEL_VERSION)
+    else:
+        wastage.load()
+        anomaly.load()
+        forecaster.load()
+
     rag.load() or rag.build_index()
-
     return wastage, forecaster, anomaly, rag
 
 
