@@ -567,9 +567,29 @@ def main():
                 lvl = expl["risk_level"]
                 color = risk_colors.get(lvl, "#a0aec0")
                 st.markdown(f"**Risk Level:** <span style='color:{color};font-weight:700;font-size:1.1rem'>{lvl.upper()}</span> &nbsp; Score: `{expl['risk_score']:.2f}`", unsafe_allow_html=True)
+
+                # Plain-English summary from SHAP
+                if shap_exp and shap_exp[0].get("summary_sentence"):
+                    st.info(f"🧠 **AI Explanation:** {shap_exp[0]['summary_sentence']}")
+
                 st.markdown(f"**Primary Reason:** {expl['primary_reason']}")
+
+                # Individual SHAP factor sentences
+                if shap_exp:
+                    top = shap_exp[0].get("top_features", [])
+                    risk_factors = [f for f in top if f["direction"] == "increases_risk"]
+                    safe_factors = [f for f in top if f["direction"] == "decreases_risk"]
+                    if risk_factors:
+                        with st.expander("🔴 Factors increasing waste risk"):
+                            for f in risk_factors:
+                                st.markdown(f"- {f['natural_language']}")
+                    if safe_factors:
+                        with st.expander("🟢 Factors reducing waste risk"):
+                            for f in safe_factors:
+                                st.markdown(f"- {f['natural_language']}")
+
                 if len(expl.get("all_reasons", [])) > 1:
-                    with st.expander("All reasons"):
+                    with st.expander("All rule-based signals"):
                         for r in expl["all_reasons"]:
                             st.markdown(f"- {r}")
                 st.success(f"**Recommended Action:** {expl['recommended_action']}")

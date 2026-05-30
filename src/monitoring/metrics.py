@@ -30,7 +30,7 @@ PREDICTIONS_COUNT = Counter(
 CHEF_SPECIALS_COUNT = Counter(
     "ecomeal_chef_specials_total",
     "Total chef specials generated",
-    ["source"],  # claude | fallback
+    ["source"],  # llm | fallback
 )
 
 ANOMALIES_DETECTED = Counter(

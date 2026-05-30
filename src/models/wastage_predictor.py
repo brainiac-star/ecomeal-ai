@@ -1,7 +1,7 @@
 """
 Wastage prediction model using XGBoost + LightGBM ensemble.
 Predicts waste probability and risk level per inventory item.
-Includes SHAP-based explainability.
+Includes SHAP-based explainability with plain-English sentences.
 """
 
 import os
@@ -156,9 +156,7 @@ class WastagePredictor:
         return pd.DataFrame(predictions)
 
     def explain(self, df: pd.DataFrame, max_items: int = 5) -> List[Dict[str, Any]]:
-        """
-        Return SHAP-based explanations: top contributing features per item.
-        """
+        """Return SHAP-based explanations with plain-English sentences per item."""
         if self.shap_explainer is None:
             return []
 
@@ -179,16 +177,20 @@ class WastagePredictor:
                 key=lambda x: abs(x[1]),
                 reverse=True,
             )[:5]
+            top_features = [
+                {
+                    "feature": feat,
+                    "impact": round(float(val), 4),
+                    "direction": "increases_risk" if val > 0 else "decreases_risk",
+                    "natural_language": _shap_to_sentence(feat, val),
+                }
+                for feat, val in feature_impacts
+            ]
+            row_vals = df.iloc[idx] if idx < len(df) else pd.Series()
             explanations.append({
                 "item_index": idx,
-                "top_features": [
-                    {
-                        "feature": feat,
-                        "impact": round(float(val), 4),
-                        "direction": "increases_risk" if val > 0 else "decreases_risk",
-                    }
-                    for feat, val in feature_impacts
-                ],
+                "top_features": top_features,
+                "summary_sentence": _build_summary_sentence(top_features, row_vals),
             })
         return explanations
 
@@ -230,6 +232,116 @@ class WastagePredictor:
         except Exception as e:
             logger.error(f"Error loading wastage model: {e}")
             return False
+
+
+_SHAP_TEMPLATES = {
+    "days_to_expiry": {
+        "increases_risk": "Very few days remain before this item expires, pushing waste risk up.",
+        "decreases_risk": "Plenty of time remains before expiry, which keeps waste risk low.",
+    },
+    "shelf_life_consumed_pct": {
+        "increases_risk": "Most of the shelf life has already been used up, increasing spoilage risk.",
+        "decreases_risk": "Only a small fraction of shelf life has elapsed, so the item is still fresh.",
+    },
+    "stock_expiry_ratio": {
+        "increases_risk": "Current stock far exceeds what can be consumed before the expiry date.",
+        "decreases_risk": "Stock levels are well matched to remaining shelf life.",
+    },
+    "overstock_flag": {
+        "increases_risk": "This item is overstocked relative to expected demand before it expires.",
+        "decreases_risk": "Stock quantity is appropriate for the remaining usage window.",
+    },
+    "wastage_history_pct": {
+        "increases_risk": "Historical data shows this ingredient is frequently wasted.",
+        "decreases_risk": "This ingredient has a strong track record of being fully used.",
+    },
+    "quantity": {
+        "increases_risk": "A large quantity is on hand that may not be used in time.",
+        "decreases_risk": "Only a small quantity remains, reducing the risk of it going to waste.",
+    },
+    "daily_consumption": {
+        "increases_risk": "Daily usage is too low to consume this stock before expiry.",
+        "decreases_risk": "High daily usage means stock will be consumed well before it expires.",
+    },
+    "stock_days_available": {
+        "increases_risk": "Current stock will last longer than the item's remaining shelf life.",
+        "decreases_risk": "Stock will be consumed before the expiry date at the current usage rate.",
+    },
+    "potential_waste_value": {
+        "increases_risk": "The monetary value at risk is significant if this item is not used soon.",
+        "decreases_risk": "The financial impact of potential waste is relatively small.",
+    },
+    "below_reorder_point": {
+        "increases_risk": "Stock is below the reorder threshold, signalling possible supply gaps.",
+        "decreases_risk": "Stock levels are above the reorder point, indicating healthy supply.",
+    },
+    "storage_type_enc": {
+        "increases_risk": "The storage conditions for this item raise the spoilage probability.",
+        "decreases_risk": "Storage conditions help preserve this item and reduce spoilage risk.",
+    },
+    "price_per_unit": {
+        "increases_risk": "High unit price means wasting even a small amount has a large financial impact.",
+        "decreases_risk": "Low unit price limits the financial loss if some quantity is wasted.",
+    },
+    "total_shelf_life_days": {
+        "increases_risk": "This is a short-shelf-life ingredient that spoils quickly by nature.",
+        "decreases_risk": "This ingredient has a long shelf life, giving more time to use it.",
+    },
+    "days_since_purchase": {
+        "increases_risk": "The item has been in storage for a long time relative to its shelf life.",
+        "decreases_risk": "The item was purchased recently, so it is still well within its usable period.",
+    },
+    "category_code": {
+        "increases_risk": "This ingredient category tends to have higher-than-average wastage rates.",
+        "decreases_risk": "This ingredient category typically has low wastage rates.",
+    },
+}
+
+_SHAP_DEFAULT = {
+    "increases_risk": "This factor pushes waste risk higher based on historical patterns.",
+    "decreases_risk": "This factor helps keep waste risk lower.",
+}
+
+
+def _shap_to_sentence(feature: str, shap_val: float) -> str:
+    direction = "increases_risk" if shap_val > 0 else "decreases_risk"
+    templates = _SHAP_TEMPLATES.get(feature, _SHAP_DEFAULT)
+    return templates[direction]
+
+
+def _build_summary_sentence(top_features: List[Dict], row: "pd.Series") -> str:
+    """Combine top SHAP drivers into a single plain-English summary sentence."""
+    risk_drivers = [f for f in top_features if f["direction"] == "increases_risk"]
+    safe_drivers = [f for f in top_features if f["direction"] == "decreases_risk"]
+
+    _labels = {
+        "days_to_expiry": "expiry proximity",
+        "shelf_life_consumed_pct": "shelf-life consumption",
+        "stock_expiry_ratio": "excess stock vs expiry",
+        "overstock_flag": "overstock",
+        "wastage_history_pct": "waste history",
+        "quantity": "stock quantity",
+        "daily_consumption": "low daily usage",
+        "stock_days_available": "stock duration",
+        "potential_waste_value": "high value at risk",
+        "total_shelf_life_days": "short shelf life",
+        "days_since_purchase": "time in storage",
+        "storage_type_enc": "storage type",
+        "price_per_unit": "unit price",
+        "category_code": "ingredient category",
+        "below_reorder_point": "reorder level",
+    }
+
+    if not risk_drivers:
+        return "No dominant waste risk factors detected — item appears to be in good shape."
+
+    top_risk_labels = [_labels.get(f["feature"], f["feature"].replace("_", " ")) for f in risk_drivers[:2]]
+    parts = " and ".join(top_risk_labels)
+
+    if safe_drivers:
+        safe_label = _labels.get(safe_drivers[0]["feature"], safe_drivers[0]["feature"].replace("_", " "))
+        return f"Waste risk is mainly driven by {parts}, partially offset by favourable {safe_label}."
+    return f"Waste risk is primarily driven by {parts}."
 
 
 def _prob_to_risk(prob: float) -> str:

@@ -1,6 +1,6 @@
 """
 AI-powered Chef Specials generator.
-Supports multiple LLM backends: Groq (free), Google Gemini (free), Anthropic Claude, Ollama (local).
+Supports multiple LLM backends: Groq (free), Google Gemini (free), hosted LLM, Ollama (local).
 Falls back to rule-based suggestions if no provider is configured.
 """
 
@@ -86,7 +86,7 @@ def _extract_json(raw: str) -> dict:
 class ChefSpecialsEngine:
     """
     Multi-provider LLM engine for Chef Specials.
-    Provider priority: Groq → Gemini → Claude → Ollama → fallback
+    Provider priority: Groq → Gemini → hosted LLM → Ollama → fallback
     """
 
     def __init__(self):
@@ -127,7 +127,7 @@ class ChefSpecialsEngine:
             except ImportError:
                 logger.warning("google-generativeai package not installed, trying next provider")
 
-        # 3. Anthropic Claude (paid)
+        # 3. Hosted LLM provider (optional)
         anthropic_key = settings.anthropic_api_key
         if anthropic_key:
             try:
@@ -213,7 +213,7 @@ class ChefSpecialsEngine:
             messages=[{"role": "user", "content": prompt}],
         )
         result = _extract_json(response.content[0].text)
-        logger.info(f"Claude generated {len(result['chef_specials'])} chef specials")
+        logger.info(f"LLM generated {len(result['chef_specials'])} chef specials")
         return result
 
     def _call_ollama(self, prompt: str) -> dict:

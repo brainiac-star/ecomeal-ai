@@ -15,7 +15,7 @@ router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
 async def generate_chef_specials(request: ChefSpecialsRequest):
     """
     Generate AI-powered Chef Specials for expiring ingredients.
-    Uses Claude API with RAG-augmented context.
+    Uses the configured LLM provider with RAG-augmented context.
     """
     models = get_models()
     chef_engine = models["chef"]
@@ -34,7 +34,7 @@ async def generate_chef_specials(request: ChefSpecialsRequest):
             context=context_str,
         )
 
-        source = "fallback" if result.get("_source") == "fallback" else "claude"
+        source = "fallback" if result.get("_source") == "fallback" else "llm"
         CHEF_SPECIALS_COUNT.labels(source=source).inc()
 
         return {

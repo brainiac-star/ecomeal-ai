@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = Field("", validation_alias="GEMINI_API_KEY")
 
     # Model names
-    claude_model: str = Field("claude-sonnet-4-6", validation_alias="CLAUDE_MODEL")
+    claude_model: str = Field("claude-sonnet-4-6", validation_alias="LLM_MODEL")
     groq_model: str = Field("llama-3.1-8b-instant", validation_alias="GROQ_MODEL")
     gemini_model: str = Field("gemini-1.5-flash", validation_alias="GEMINI_MODEL")
     ollama_model: str = Field("llama3", validation_alias="OLLAMA_MODEL")
