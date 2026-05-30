@@ -100,6 +100,29 @@ RESTAURANTS = [
     "The Curry House", "Bay Leaf Restaurant", "Savanna Grill",
 ]
 
+# Each restaurant has a management quality profile that affects ordering behaviour,
+# waste rates, and pricing tier. High-quality ops = tighter stock, lower waste.
+RESTAURANT_PROFILES = {
+    "The Spice Garden":    {"mgmt": 0.85, "price_tier": 1.2, "order_freq_days": 3},
+    "Urban Kitchen":       {"mgmt": 0.70, "price_tier": 1.0, "order_freq_days": 4},
+    "Green Leaf Bistro":   {"mgmt": 0.90, "price_tier": 1.4, "order_freq_days": 2},
+    "The Curry House":     {"mgmt": 0.55, "price_tier": 0.9, "order_freq_days": 5},
+    "Bay Leaf Restaurant": {"mgmt": 0.75, "price_tier": 1.1, "order_freq_days": 3},
+    "Savanna Grill":       {"mgmt": 0.60, "price_tier": 1.0, "order_freq_days": 5},
+}
+
+# Reorder lead times and order cycle by category (days)
+CATEGORY_ORDER_PROFILE = {
+    "vegetables":         {"lead_days": 1, "order_cycle": 3,  "batch_multiplier": (1.5, 3.0)},
+    "dairy":              {"lead_days": 1, "order_cycle": 3,  "batch_multiplier": (1.5, 3.0)},
+    "meat_seafood":       {"lead_days": 1, "order_cycle": 2,  "batch_multiplier": (1.2, 2.5)},
+    "grains_pulses":      {"lead_days": 3, "order_cycle": 21, "batch_multiplier": (14.0, 30.0)},
+    "spices_condiments":  {"lead_days": 3, "order_cycle": 30, "batch_multiplier": (20.0, 45.0)},
+    "oils_fats":          {"lead_days": 2, "order_cycle": 14, "batch_multiplier": (10.0, 20.0)},
+    "beverages":          {"lead_days": 1, "order_cycle": 4,  "batch_multiplier": (2.0, 5.0)},
+    "bakery":             {"lead_days": 1, "order_cycle": 2,  "batch_multiplier": (1.0, 2.0)},
+}
+
 
 def _compute_waste_risk(row: pd.Series) -> float:
     """
@@ -174,42 +197,73 @@ def generate_inventory_dataset(
             k=1,
         )[0]
         meta = CATEGORIES[category]
+        cat_profile = CATEGORY_ORDER_PROFILE[category]
 
         ingredient = random.choice(meta["items"])
         unit = random.choice(meta["units"])
         storage_type = random.choice(meta["storage"])
-        supplier = random.choice(SUPPLIERS)
+
+        # Each restaurant has preferred suppliers — 70% chance of using top-2
         restaurant = random.choice(RESTAURANTS)
+        rp = RESTAURANT_PROFILES[restaurant]
+        preferred_suppliers = SUPPLIERS[:4] if rp["price_tier"] >= 1.1 else SUPPLIERS[3:]
+        supplier = random.choices(
+            preferred_suppliers + SUPPLIERS,
+            weights=[3] * len(preferred_suppliers) + [1] * len(SUPPLIERS),
+            k=1,
+        )[0]
 
         shelf_life_min, shelf_life_max = meta["shelf_life_days"]
         total_shelf_life = int(np.random.randint(shelf_life_min, shelf_life_max + 1))
 
-        # Purchase date: between 0 and 60% of shelf life ago
-        days_since_purchase = int(np.random.uniform(0, total_shelf_life * 0.6))
+        # Daily consumption: category-scaled with lognormal noise
+        base_consumption = np.random.uniform(0.5, 15)
+        daily_consumption = round(base_consumption * np.random.lognormal(0, 0.15), 3)
+
+        # Order cycle: poorly managed restaurants order less frequently
+        order_cycle = cat_profile["order_cycle"] * np.random.uniform(0.8, 1.3)
+        order_cycle *= (1.0 + (1.0 - rp["mgmt"]) * 0.5)  # poor mgmt → longer cycles
+
+        # Days since last order: 0 to one full order cycle
+        days_since_purchase = int(np.random.uniform(0, max(order_cycle, 1)))
+        # Cap at 65% of shelf life so item isn't already expired
+        days_since_purchase = min(days_since_purchase, int(total_shelf_life * 0.65))
+
         purchase_date = reference_date - timedelta(days=days_since_purchase)
         expiry_date = purchase_date + timedelta(days=total_shelf_life)
         days_to_expiry = max(0, (expiry_date - reference_date).days)
 
-        # Daily consumption with noise
-        base_consumption = np.random.uniform(0.5, 15)
-        daily_consumption = round(
-            base_consumption * np.random.lognormal(0, 0.2), 3
-        )
+        # Ordered qty = one order cycle worth + safety buffer
+        # Poorly managed restaurants over-order (buffer 1.5-2.5x vs 1.0-1.5x)
+        if rp["mgmt"] >= 0.75:
+            buffer = np.random.uniform(1.0, 1.5)
+        else:
+            buffer = np.random.uniform(1.4, 2.5)
+        ordered_qty = daily_consumption * order_cycle * buffer
 
-        # Quantity: plausible relative to consumption and remaining shelf life
-        expected_usage = daily_consumption * max(days_to_expiry, 1)
-        quantity = round(
-            expected_usage * np.random.uniform(0.5, 2.5), 3
-        )
-        quantity = max(quantity, 0.1)
+        # Consumed since purchase (with ±10% usage variability)
+        consumed = daily_consumption * days_since_purchase * np.random.uniform(0.9, 1.1)
+        quantity = round(max(ordered_qty - consumed, daily_consumption * 0.3), 3)
 
+        # Reorder point: lead_time days + safety stock
+        safety_days = cat_profile["lead_days"] + cat_profile["order_cycle"] * 0.3
+        reorder_point = round(daily_consumption * safety_days * np.random.uniform(0.9, 1.1), 3)
+
+        # Waste history: correlated with management quality and storage type
         waste_min, waste_max = meta["waste_rate"]
-        wastage_history_pct = round(np.random.uniform(waste_min, waste_max), 4)
+        # Poor management → waste skews toward the high end
+        waste_skew = 1.0 - rp["mgmt"] * 0.5
+        wastage_history_pct = round(
+            np.random.beta(2 * waste_skew, 2 * (1 - waste_skew) + 1)
+            * (waste_max - waste_min) + waste_min, 4
+        )
 
+        # Price: category range scaled by restaurant price tier + small noise
         price_min, price_max = meta["price_range"]
-        price_per_unit = round(np.random.uniform(price_min, price_max), 2)
-
-        reorder_point = round(daily_consumption * np.random.randint(3, 8), 3)
+        price_per_unit = round(
+            np.random.uniform(price_min, price_max) * rp["price_tier"]
+            * np.random.uniform(0.95, 1.05), 2
+        )
 
         row = {
             "item_id": f"ITEM-{i+1:05d}",
@@ -242,6 +296,31 @@ def generate_inventory_dataset(
         rows.append(row)
 
     df = pd.DataFrame(rows)
+
+    # Force realistic risk distribution: ~8% critical, ~15% high, ~30% medium, ~47% low
+    # Override a fraction of rows to represent genuinely at-risk items
+    n_critical = int(n_records * 0.08)
+    n_high     = int(n_records * 0.15)
+    rng = np.random.default_rng(seed + 1)
+    all_idx = rng.permutation(n_records)
+    crit_idx = all_idx[:n_critical]
+    high_idx = all_idx[n_critical:n_critical + n_high]
+
+    # Critical: expiring in 0-2 days, overstocked
+    for idx in crit_idx:
+        df.loc[idx, "days_to_expiry"]  = int(rng.integers(0, 3))
+        df.loc[idx, "quantity"]        = round(df.loc[idx, "daily_consumption"] * rng.uniform(8, 20), 3)
+        df.loc[idx, "will_waste"]      = 1
+        df.loc[idx, "waste_risk_score"] = round(rng.uniform(0.70, 0.95), 4)
+        df.loc[idx, "risk_level"]      = "critical"
+
+    # High: expiring in 3-7 days with excess stock
+    for idx in high_idx:
+        df.loc[idx, "days_to_expiry"]  = int(rng.integers(3, 8))
+        df.loc[idx, "quantity"]        = round(df.loc[idx, "daily_consumption"] * rng.uniform(5, 12), 3)
+        df.loc[idx, "will_waste"]      = int(rng.random() < 0.75)
+        df.loc[idx, "waste_risk_score"] = round(rng.uniform(0.45, 0.70), 4)
+        df.loc[idx, "risk_level"]      = "high"
 
     # Intentionally inject ~5% dirty records to test robustness
     n_dirty = max(10, int(n_records * 0.05))
