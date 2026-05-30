@@ -100,6 +100,26 @@ section[data-testid="stSidebar"] .stSlider label { color: #a0aec0; }
 /* Dataframe */
 .stDataFrame { border-radius: 10px; overflow: hidden; }
 
+/* NL explanation card */
+.nl-card {
+    background: #1e2a3a;
+    border-left: 4px solid #4facfe;
+    border-radius: 8px;
+    padding: 0.9rem 1.2rem;
+    margin: 0.8rem 0;
+    color: #e2e8f0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+.nl-card .nl-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #4facfe;
+    margin-bottom: 0.3rem;
+}
+
 /* Buttons */
 .stButton > button {
     background: linear-gradient(135deg, #667eea, #764ba2);
@@ -663,7 +683,11 @@ def main():
 
                 # ── Plain-English explanation (always visible) ─────────────────
                 nl_sentence = _nl_explain_row(row)
-                st.info(f"🧠 **In plain English:** {nl_sentence}")
+                st.markdown(f"""
+<div class="nl-card">
+  <div class="nl-label">What this means</div>
+  {nl_sentence}
+</div>""", unsafe_allow_html=True)
 
                 # ── Why factors ────────────────────────────────────────────────
                 risk_sentences, safe_sentences = _nl_factor_sentences(row)
