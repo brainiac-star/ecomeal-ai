@@ -329,7 +329,7 @@ def main():
     # ── Tab 4: Chef Specials ───────────────────────────────────────────────────
     with tabs[3]:
         st.markdown("#### 👨‍🍳 AI Chef Specials Generator")
-        st.info("Select expiring ingredients and generate AI-powered dish suggestions using Claude.")
+        st.info("Select expiring ingredients and generate AI-powered dish suggestions using Groq AI (llama-3.1-8b).")
 
         # Auto-suggest from high risk items
         if "risk_level_pred" in df_pred.columns:
