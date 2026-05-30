@@ -1,6 +1,19 @@
+import os
 from pydantic_settings import BaseSettings
 from pydantic import Field, ConfigDict
 from functools import lru_cache
+
+
+def _get_secret(key: str, default: str = "") -> str:
+    """Read from env vars first, then Streamlit secrets if available."""
+    val = os.environ.get(key, "")
+    if val:
+        return val
+    try:
+        import streamlit as st
+        return st.secrets.get(key, default)
+    except Exception:
+        return default
 
 
 class Settings(BaseSettings):
@@ -18,7 +31,7 @@ class Settings(BaseSettings):
     api_port: int = Field(8000, validation_alias="API_PORT")
     api_workers: int = Field(2, validation_alias="API_WORKERS")
 
-    # LLM providers — set whichever you have
+    # LLM providers
     anthropic_api_key: str = Field("", validation_alias="ANTHROPIC_API_KEY")
     groq_api_key: str = Field("", validation_alias="GROQ_API_KEY")
     gemini_api_key: str = Field("", validation_alias="GEMINI_API_KEY")
@@ -40,4 +53,12 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    # Override with Streamlit secrets if keys are empty
+    if not s.groq_api_key:
+        s.groq_api_key = _get_secret("GROQ_API_KEY")
+    if not s.anthropic_api_key:
+        s.anthropic_api_key = _get_secret("ANTHROPIC_API_KEY")
+    if not s.gemini_api_key:
+        s.gemini_api_key = _get_secret("GEMINI_API_KEY")
+    return s

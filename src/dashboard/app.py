@@ -373,9 +373,9 @@ def main():
                         )
 
                         if result.get("_source") == "fallback":
-                            st.warning("⚠️ Using fallback suggestions (Claude API key not configured)")
+                            st.warning("⚠️ Using fallback suggestions (AI key not configured)")
                         else:
-                            st.success("✅ Generated using Claude AI")
+                            st.success("✅ Generated using AI")
 
                         # Display specials
                         for i, special in enumerate(result.get("chef_specials", [])):
