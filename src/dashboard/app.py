@@ -582,11 +582,13 @@ def main():
                     if risk_factors:
                         with st.expander("🔴 Factors increasing waste risk"):
                             for f in risk_factors:
-                                st.markdown(f"- {f['natural_language']}")
+                                nl = f.get("natural_language") or f.get("feature", "").replace("_", " ").title()
+                                st.markdown(f"- {nl}")
                     if safe_factors:
                         with st.expander("🟢 Factors reducing waste risk"):
                             for f in safe_factors:
-                                st.markdown(f"- {f['natural_language']}")
+                                nl = f.get("natural_language") or f.get("feature", "").replace("_", " ").title()
+                                st.markdown(f"- {nl}")
 
                 if len(expl.get("all_reasons", [])) > 1:
                     with st.expander("All rule-based signals"):
