@@ -363,10 +363,11 @@ def main():
     """, unsafe_allow_html=True)
 
     # ── Tabs ───────────────────────────────────────────────────────────────────
-    t1, t2, t3, t4, t5, t6 = st.tabs([
+    t1, t2, t3, t4, t5, t6, t7, t8 = st.tabs([
         "🔍 Risk Analysis", "📈 Demand Forecast",
         "⚠️ Anomalies", "👨‍🍳 Chef Specials",
-        "🔬 Explainability", "🗄️ Data"
+        "🔬 Explainability", "🛒 Operations",
+        "📊 Insights", "🗄️ Data"
     ])
 
     # ── Tab 1: Risk Analysis ───────────────────────────────────────────────────
@@ -703,8 +704,210 @@ def main():
                 st.success(f"✅ **Recommended Action:** {expl['recommended_action']}")
 
 
-    # ── Tab 6: Raw Data ────────────────────────────────────────────────────────
+    # ── Tab 6: Operations ─────────────────────────────────────────────────────
     with t6:
+        st.markdown('<div class="section-title">🛒 Reorder Suggestions</div>', unsafe_allow_html=True)
+        st.caption("Based on current stock and forecasted demand — exact quantities and timing to reorder.")
+
+        reorder_rows = []
+        for _, row in df_pred.iterrows():
+            daily = float(row.get("daily_consumption", 0.01))
+            qty   = float(row.get("quantity", 0))
+            dte   = int(row.get("days_to_expiry", 0))
+            rp    = float(row.get("reorder_point", 0))
+            price = float(row.get("price_per_unit", 0))
+            stock_days = qty / max(daily, 0.01)
+            lead_time = 3  # assumed days
+
+            below_reorder = qty <= rp
+            will_run_out  = stock_days <= lead_time + 2
+            if below_reorder or will_run_out:
+                reorder_qty   = round(daily * 14 - qty, 2)  # restock to 2 weeks supply
+                reorder_qty   = max(reorder_qty, daily * 3)
+                days_until    = max(0, int(stock_days - lead_time))
+                reorder_rows.append({
+                    "Ingredient":     row.get("ingredient_name", ""),
+                    "Category":       row.get("category", ""),
+                    "Current Stock":  f"{qty:.1f} {row.get('unit','')}",
+                    "Days of Stock":  int(stock_days),
+                    "Order Qty":      f"{reorder_qty:.1f} {row.get('unit','')}",
+                    "Order By":       f"in {days_until} day(s)",
+                    "Est. Cost":      f"₹{reorder_qty * price:,.0f}",
+                    "Urgency":        "🔴 Today" if days_until == 0 else ("🟠 Soon" if days_until <= 2 else "🟡 Plan"),
+                })
+
+        if reorder_rows:
+            ro_df = pd.DataFrame(reorder_rows).sort_values("Days of Stock")
+            st.dataframe(ro_df, use_container_width=True, hide_index=True, height=320)
+            total_cost = sum(
+                float(r["Est. Cost"].replace("₹","").replace(",",""))
+                for r in reorder_rows
+            )
+            c1, c2 = st.columns(2)
+            c1.metric("Items to Reorder", len(reorder_rows))
+            c2.metric("Total Reorder Cost", f"₹{total_cost:,.0f}")
+        else:
+            st.success("✅ All items are adequately stocked — no reorders needed right now.")
+
+        st.markdown("---")
+        st.markdown('<div class="section-title">💰 Waste Cost Tracker</div>', unsafe_allow_html=True)
+        st.caption("Simulated waste prevented by acting on AI recommendations over the past 30 days.")
+
+        np.random.seed(99)
+        days_back = 30
+        dates = pd.date_range(end=date.today(), periods=days_back)
+        base_waste  = float(df_pred.get("potential_waste_value", pd.Series([0])).mean()) * 0.15
+        daily_waste  = np.random.normal(base_waste, base_waste * 0.3, days_back).clip(0)
+        daily_saved  = daily_waste * np.random.uniform(0.4, 0.75, days_back)
+        tracker_df   = pd.DataFrame({"date": dates, "Waste Prevented (₹)": daily_saved, "Waste Occurred (₹)": daily_waste - daily_saved})
+
+        fig_wt = go.Figure()
+        fig_wt.add_trace(go.Bar(x=tracker_df["date"], y=tracker_df["Waste Prevented (₹)"],
+                                name="Prevented", marker_color="#56ab2f"))
+        fig_wt.add_trace(go.Bar(x=tracker_df["date"], y=tracker_df["Waste Occurred (₹)"],
+                                name="Still Wasted", marker_color="#fc5c7d"))
+        fig_wt.update_layout(
+            barmode="stack", title="Daily Waste Cost — Last 30 Days",
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#a0aec0", title_font_color="#fff",
+            xaxis=dict(gridcolor="#2d3748"), yaxis=dict(gridcolor="#2d3748", tickprefix="₹"),
+            legend=dict(font=dict(color="#a0aec0")), margin=dict(t=50, b=20),
+        )
+        st.plotly_chart(fig_wt, use_container_width=True)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Waste Prevented", f"₹{daily_saved.sum():,.0f}")
+        c2.metric("Still Wasted",          f"₹{(daily_waste - daily_saved).sum():,.0f}")
+        c3.metric("Prevention Rate",       f"{daily_saved.sum()/max(daily_waste.sum(),1)*100:.0f}%")
+
+        st.markdown("---")
+        st.markdown('<div class="section-title">🔄 Ingredient Substitution</div>', unsafe_allow_html=True)
+        st.caption("Overstocked ingredients and dishes that can substitute them into the menu.")
+
+        _SUBSTITUTIONS = {
+            "Tomatoes":       ["Tomato Shorba", "Tomato Rice", "Bruschetta", "Shakshuka"],
+            "Onions":         ["French Onion Soup", "Onion Bhaji", "Caramelised Onion Tart"],
+            "Spinach":        ["Palak Paneer", "Spinach Dal", "Green Smoothie Bowl", "Spanakopita"],
+            "Mushrooms":      ["Mushroom Risotto", "Mushroom Soup", "Mushroom Stir Fry"],
+            "Bell Peppers":   ["Stuffed Peppers", "Peperonata", "Pepper Stir Fry"],
+            "Chicken Breast": ["Grilled Chicken Bowl", "Chicken Tikka", "Chicken Caesar Wrap"],
+            "Paneer":         ["Palak Paneer", "Paneer Tikka", "Kadai Paneer", "Paneer Bhurji"],
+            "Basmati Rice":   ["Biryani", "Fried Rice", "Khichdi", "Rice Pudding"],
+            "Bread":          ["French Toast", "Bread Pakoda", "Croutons", "Bread Pudding"],
+            "Carrots":        ["Carrot Halwa", "Carrot Soup", "Glazed Carrots", "Gajar Ka Halwa"],
+            "Potatoes":       ["Aloo Tikki", "Mashed Potato", "Hash Browns", "Potato Wedges"],
+            "Lentils":        ["Dal Tadka", "Lentil Soup", "Dal Makhani", "Masoor Dal"],
+        }
+
+        overstock_items = df_pred[
+            (df_pred.get("overstock_flag", pd.Series(False, index=df_pred.index)).astype(bool)) |
+            (df_pred.get("stock_expiry_ratio", pd.Series(1, index=df_pred.index)) > 1.3)
+        ]["ingredient_name"].value_counts().head(8).index.tolist()
+
+        if overstock_items:
+            for ing in overstock_items[:6]:
+                dishes = _SUBSTITUTIONS.get(ing)
+                if not dishes:
+                    # generic fallback
+                    dishes = [f"{ing} Stir Fry", f"{ing} Soup", f"{ing} Curry"]
+                qty_row = df_pred[df_pred["ingredient_name"] == ing].head(1)
+                qty_val = f"{qty_row['quantity'].values[0]:.1f} {qty_row['unit'].values[0]}" if not qty_row.empty else ""
+                st.markdown(f"""
+<div class="nl-card">
+  <div class="nl-label">Overstock: {ing} &nbsp;·&nbsp; {qty_val}</div>
+  <b>Use in:</b> {' &nbsp;·&nbsp; '.join(f'<span style="color:#4facfe">{d}</span>' for d in dishes)}
+</div>""", unsafe_allow_html=True)
+        else:
+            st.success("No significant overstock detected.")
+
+    # ── Tab 7: Insights ───────────────────────────────────────────────────────
+    with t7:
+        st.markdown('<div class="section-title">📊 Multi-Restaurant Waste Risk Comparison</div>', unsafe_allow_html=True)
+        st.caption("Side-by-side waste risk profile across all restaurants in the network.")
+
+        from src.data.generator import generate_inventory_dataset
+        from src.data.preprocessor import clean_inventory, encode_categoricals
+
+        @st.cache_data(show_spinner=False)
+        def get_all_restaurants_data(n: int = 1200):
+            df_raw, _ = clean_inventory(generate_inventory_dataset(n_records=n, seed=42))
+            df_all    = encode_categoricals(df_raw)
+            preds_all = wastage.predict(df_all)
+            return pd.concat([df_all.reset_index(drop=True), preds_all], axis=1)
+
+        df_all = get_all_restaurants_data()
+
+        # Stacked bar — risk distribution per restaurant
+        rc = df_all.groupby(["restaurant", "risk_level_pred"]).size().reset_index(name="count")
+        fig_rc = px.bar(
+            rc, x="restaurant", y="count", color="risk_level_pred",
+            color_discrete_map={"critical":"#fc5c7d","high":"#f7971e","medium":"#f6d365","low":"#56ab2f"},
+            title="Risk Distribution by Restaurant",
+            labels={"restaurant":"Restaurant","count":"Items","risk_level_pred":"Risk"},
+            barmode="stack",
+        )
+        fig_rc.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#a0aec0", title_font_color="#fff",
+            xaxis=dict(gridcolor="#2d3748", tickangle=-20),
+            yaxis=dict(gridcolor="#2d3748"),
+            legend=dict(font=dict(color="#a0aec0")),
+            margin=dict(t=50, b=60),
+        )
+        st.plotly_chart(fig_rc, use_container_width=True)
+
+        # KPI table per restaurant
+        rest_summary = df_all.groupby("restaurant").agg(
+            Total=("ingredient_name","count"),
+            Critical=(      "risk_level_pred", lambda x: (x=="critical").sum()),
+            High=(          "risk_level_pred", lambda x: (x=="high").sum()),
+            Avg_Risk=(      "waste_probability","mean"),
+            Waste_Value=(   "potential_waste_value","sum"),
+        ).reset_index()
+        rest_summary["Avg_Risk"]     = rest_summary["Avg_Risk"].apply(lambda x: f"{x:.1%}")
+        rest_summary["Waste_Value"]  = rest_summary["Waste_Value"].apply(lambda x: f"₹{x:,.0f}")
+        rest_summary.columns = ["Restaurant","Total Items","Critical","High Risk","Avg Risk","Waste Value at Risk"]
+        st.dataframe(rest_summary, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+        st.markdown('<div class="section-title">📉 Historical Waste Risk Trend — Last 30 Days</div>', unsafe_allow_html=True)
+        st.caption("Simulated daily waste risk score per category to show how risk evolves over time.")
+
+        categories = df_pred["category"].dropna().unique().tolist()
+        sel_cats   = st.multiselect("Select categories", categories, default=categories[:4])
+
+        if sel_cats:
+            np.random.seed(7)
+            trend_dates = pd.date_range(end=date.today(), periods=30)
+            trend_rows  = []
+            for cat in sel_cats:
+                base = df_pred[df_pred["category"]==cat]["waste_probability"].mean() if "waste_probability" in df_pred.columns else 0.4
+                noise = np.random.normal(0, 0.03, 30)
+                trend = np.linspace(0, np.random.choice([-0.05, 0.05]), 30)
+                vals  = (base + trend + noise).clip(0, 1)
+                for d, v in zip(trend_dates, vals):
+                    trend_rows.append({"Date": d, "Category": cat, "Avg Waste Risk": round(v, 3)})
+
+            trend_df = pd.DataFrame(trend_rows)
+            fig_tr = px.line(
+                trend_df, x="Date", y="Avg Waste Risk", color="Category",
+                title="Waste Risk Trend by Category",
+                labels={"Avg Waste Risk": "Avg Waste Probability"},
+                markers=True,
+            )
+            fig_tr.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font_color="#a0aec0", title_font_color="#fff",
+                xaxis=dict(gridcolor="#2d3748"), yaxis=dict(gridcolor="#2d3748", tickformat=".0%"),
+                legend=dict(font=dict(color="#a0aec0")),
+                margin=dict(t=50, b=20),
+                hovermode="x unified",
+            )
+            fig_tr.add_hline(y=0.45, line_dash="dash", line_color="#f7971e",
+                             annotation_text="High Risk Threshold", annotation_font_color="#f7971e")
+            st.plotly_chart(fig_tr, use_container_width=True)
+
+    # ── Tab 8: Raw Data ────────────────────────────────────────────────────────
+    with t8:
         st.markdown('<div class="section-title">Inventory Data</div>', unsafe_allow_html=True)
 
         c1, c2, c3 = st.columns(3)
