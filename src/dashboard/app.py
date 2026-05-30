@@ -135,6 +135,29 @@ section[data-testid="stSidebar"] .stSlider label { color: #a0aec0; }
 """, unsafe_allow_html=True)
 
 
+# ── SHAP factor deduplication (mirrors wastage_predictor._deduplicate_factors) ─
+def _deduplicate_factors(top_features):
+    _SEMANTIC_GROUPS = [
+        {"stock_days_available", "stock_expiry_ratio", "overstock_flag"},
+        {"days_to_expiry", "shelf_life_consumed_pct", "days_since_purchase"},
+        {"quantity", "potential_waste_value"},
+        {"daily_consumption"},
+    ]
+    seen_groups = set()
+    risk_drivers, safe_drivers = [], []
+    for f in top_features:
+        feat = f["feature"]
+        direction = f["direction"]
+        group_id = next((i for i, g in enumerate(_SEMANTIC_GROUPS) if feat in g), None)
+        if group_id is not None:
+            conflict = (group_id, "decreases_risk" if direction == "increases_risk" else "increases_risk")
+            if conflict in seen_groups:
+                continue
+            seen_groups.add((group_id, direction))
+        (risk_drivers if direction == "increases_risk" else safe_drivers).append(f)
+    return risk_drivers, safe_drivers
+
+
 # ── Plain-English explanation helpers ─────────────────────────────────────────
 def _nl_explain_row(row: "pd.Series") -> str:
     dte = int(row.get("days_to_expiry", 0))
@@ -694,7 +717,6 @@ def main():
 
                 # ── SHAP factor sentences (model-driven, deduplicated) ─────────
                 if shap_exp:
-                    from src.models.wastage_predictor import _deduplicate_factors
                     top = shap_exp[0].get("top_features", [])
                     risk_factors, safe_factors = _deduplicate_factors(top)
                     risk_sentences = [f["natural_language"] for f in risk_factors if f.get("natural_language")]
