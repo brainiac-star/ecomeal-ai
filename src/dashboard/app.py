@@ -246,51 +246,18 @@ def _nl_factor_sentences(row: "pd.Series"):
 
 
 # ── Model loader ───────────────────────────────────────────────────────────────
-_MODEL_VERSION = "v4"  # bump this to force retrain on next deploy
-
 @st.cache_resource(show_spinner=False)
 def load_models():
-    import joblib
-    from pathlib import Path
     from src.models.wastage_predictor import WastagePredictor
     from src.models.demand_forecaster import DemandForecaster
     from src.models.anomaly_detector import InventoryAnomalyDetector
     from src.recommendations.rag_engine import RAGRecommendationEngine
-    from src.data.generator import generate_inventory_dataset, generate_demand_history
-    from src.data.preprocessor import clean_inventory, encode_categoricals
 
-    model_dir = Path(settings.model_dir)
-    model_dir.mkdir(parents=True, exist_ok=True)
-    version_file = model_dir / "model_version.txt"
+    wastage    = WastagePredictor();    wastage.load()
+    anomaly    = InventoryAnomalyDetector(); anomaly.load()
+    forecaster = DemandForecaster();    forecaster.load()
+    rag        = RAGRecommendationEngine(); rag.load() or rag.build_index()
 
-    saved_version = version_file.read_text().strip() if version_file.exists() else ""
-    needs_train = saved_version != _MODEL_VERSION
-
-    wastage    = WastagePredictor()
-    anomaly    = InventoryAnomalyDetector()
-    forecaster = DemandForecaster()
-    rag        = RAGRecommendationEngine()
-
-    if needs_train:
-        # Use smaller dataset for faster cold-start (~8s vs ~25s)
-        df_raw = generate_inventory_dataset(n_records=600, seed=settings.random_seed)
-        df, _  = clean_inventory(df_raw)
-        df     = encode_categoricals(df)
-
-        wastage.train(df);    wastage.save()
-        anomaly.fit(df);      anomaly.save()
-
-        ingredients = df["ingredient_name"].unique().tolist()[:20]
-        demand_df   = generate_demand_history(ingredients=ingredients, n_days=90)
-        forecaster.fit(demand_df); forecaster.save()
-
-        version_file.write_text(_MODEL_VERSION)
-    else:
-        wastage.load()
-        anomaly.load()
-        forecaster.load()
-
-    rag.load() or rag.build_index()
     return wastage, forecaster, anomaly, rag
 
 

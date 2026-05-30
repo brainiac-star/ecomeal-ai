@@ -11,9 +11,7 @@ __pycache__/
 dist/
 build/
 
-# Data & Models (large binary files)
-data/models/*.pkl
-data/models/*.faiss
+# Data
 data/processed/*.parquet
 data/raw/
 
