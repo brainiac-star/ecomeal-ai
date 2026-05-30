@@ -93,9 +93,21 @@ class ChefSpecialsEngine:
         self.provider, self.client = self._init_provider()
         logger.info(f"Chef Specials engine using provider: {self.provider}")
 
+    def _get_groq_key(self):
+        """Read Groq key from env, settings, or Streamlit secrets."""
+        import os
+        key = os.environ.get("GROQ_API_KEY", "") or settings.groq_api_key
+        if not key:
+            try:
+                import streamlit as st
+                key = st.secrets.get("GROQ_API_KEY", "")
+            except Exception:
+                pass
+        return key
+
     def _init_provider(self):
         # 1. Groq (free, fast — sign up at console.groq.com)
-        groq_key = settings.groq_api_key
+        groq_key = self._get_groq_key()
         if groq_key:
             try:
                 from groq import Groq
