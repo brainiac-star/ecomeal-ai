@@ -171,11 +171,16 @@ class WastagePredictor:
         explanations = []
         for idx in range(len(X)):
             sv = sv_all[idx]
+            # Normalise to [−1, 1] so direction is clear regardless of scale
+            max_abs = np.abs(sv).max()
+            if max_abs > 0:
+                sv = sv / max_abs
+
             feature_impacts = sorted(
                 zip(self.feature_cols, sv),
                 key=lambda x: abs(x[1]),
                 reverse=True,
-            )[:5]
+            )[:6]
             top_features = [
                 {
                     "feature": feat,

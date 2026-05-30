@@ -42,7 +42,7 @@ class InventoryAnomalyDetector:
         self.is_fitted: bool = False
         self.model_dir = Path(settings.model_dir)
         self.model_dir.mkdir(parents=True, exist_ok=True)
-        self.anomaly_threshold: float = -0.5
+        self.anomaly_threshold: float = -0.52
 
     def _get_features(self, df: pd.DataFrame) -> pd.DataFrame:
         available = [c for c in self.ANOMALY_FEATURES if c in df.columns]
@@ -56,7 +56,7 @@ class InventoryAnomalyDetector:
         self.scaler = StandardScaler()
         X_scaled = self.scaler.fit_transform(X)
 
-        contamination = min(0.05, max(0.01, 10 / max(len(df), 100)))
+        contamination = 0.05
         self.model = IsolationForest(
             n_estimators=200,
             contamination=contamination,

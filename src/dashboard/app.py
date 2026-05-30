@@ -715,14 +715,17 @@ def main():
   {display_sentence}
 </div>""", unsafe_allow_html=True)
 
-                # ── SHAP factor sentences (model-driven, deduplicated) ─────────
+                # ── SHAP factor sentences (model-driven) ──────────────────────
                 if shap_exp:
                     top = shap_exp[0].get("top_features", [])
                     risk_factors, safe_factors = _deduplicate_factors(top)
                     risk_sentences = [f["natural_language"] for f in risk_factors if f.get("natural_language")]
                     safe_sentences = [f["natural_language"] for f in safe_factors if f.get("natural_language")]
+                    # If deduplication removed everything, show raw top features
+                    if not risk_sentences and not safe_sentences:
+                        risk_sentences = [f["natural_language"] for f in top[:3] if f.get("natural_language") and f["direction"] == "increases_risk"]
+                        safe_sentences  = [f["natural_language"] for f in top[:3] if f.get("natural_language") and f["direction"] == "decreases_risk"]
                 else:
-                    # Fallback: rule-based if SHAP unavailable
                     risk_sentences, safe_sentences = _nl_factor_sentences(row)
 
                 if risk_sentences:
