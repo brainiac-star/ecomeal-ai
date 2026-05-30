@@ -1,0 +1,131 @@
+{
+  "pipeline_date": "2026-05-30",
+  "dataset": {
+    "total_records": 1200,
+    "clean_records": 1200,
+    "quality_report": {
+      "original_rows": 1200,
+      "issues": {
+        "duplicate_rows_removed": 0,
+        "quantity_nulls_filled": 15,
+        "price_per_unit_negatives_fixed": 15
+      },
+      "cleaned_rows": 1200,
+      "data_quality_pct": 100.0
+    }
+  },
+  "wastage_model": {
+    "roc_auc": 1.0,
+    "avg_precision": 1.0,
+    "f1": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "train_size": 960,
+    "val_size": 240
+  },
+  "anomaly_detection": {
+    "n_samples": 1200,
+    "n_anomalies_detected": 151,
+    "anomaly_rate": 0.1258
+  },
+  "portfolio_summary": {
+    "total_items": 1200,
+    "risk_distribution": {
+      "low": 1161,
+      "critical": 38,
+      "medium": 1
+    },
+    "critical_count": 38,
+    "high_risk_count": 0,
+    "waste_value_at_risk_inr": 1676463.93,
+    "top_at_risk_items": [
+      {
+        "ingredient_name": "Moong Dal",
+        "waste_probability": 0.9999,
+        "days_to_expiry": 70,
+        "quantity": 1789.324
+      },
+      {
+        "ingredient_name": "Cheese",
+        "waste_probability": 0.9998,
+        "days_to_expiry": 9,
+        "quantity": 224.838
+      },
+      {
+        "ingredient_name": "Cardamom",
+        "waste_probability": 0.9997,
+        "days_to_expiry": 160,
+        "quantity": 3647.489
+      },
+      {
+        "ingredient_name": "Black Pepper",
+        "waste_probability": 0.9997,
+        "days_to_expiry": 302,
+        "quantity": 6615.001
+      },
+      {
+        "ingredient_name": "Milk",
+        "waste_probability": 0.9997,
+        "days_to_expiry": 13,
+        "quantity": 316.504
+      }
+    ],
+    "overall_risk_score": 0.033
+  },
+  "forecast_ingredients": 40,
+  "overstock_risks": 849,
+  "shortage_risks": 185,
+  "chef_specials_generated": 3,
+  "top_feature_importance": [
+    {
+      "feature": "stock_expiry_ratio",
+      "importance": 413.0357616432011
+    },
+    {
+      "feature": "shelf_life_consumed_pct",
+      "importance": 386.6685173511505
+    },
+    {
+      "feature": "days_since_purchase",
+      "importance": 355.085109628737
+    },
+    {
+      "feature": "stock_days_available",
+      "importance": 261.52733213454485
+    },
+    {
+      "feature": "days_to_expiry",
+      "importance": 237.01917052455246
+    },
+    {
+      "feature": "daily_consumption",
+      "importance": 187.50449108099565
+    },
+    {
+      "feature": "total_shelf_life_days",
+      "importance": 186.03419007360935
+    },
+    {
+      "feature": "quantity",
+      "importance": 138.50376968528144
+    },
+    {
+      "feature": "reorder_point",
+      "importance": 90.00411283411086
+    },
+    {
+      "feature": "price_per_unit",
+      "importance": 82.00603132555261
+    }
+  ],
+  "high_risk_ingredients": [
+    "Wheat Flour",
+    "Orange Juice",
+    "Chili Powder",
+    "Soy Sauce",
+    "Moong Dal",
+    "Peas",
+    "Khoa",
+    "Olive Oil"
+  ]
+}
