@@ -362,6 +362,9 @@ def main():
             else:
                 with st.spinner("Generating Chef Specials with AI..."):
                     try:
+                        import os, streamlit as st
+                        groq_key = st.secrets.get("GROQ_API_KEY", "") or os.environ.get("GROQ_API_KEY", "")
+                        os.environ["GROQ_API_KEY"] = groq_key
                         from src.recommendations.chef_specials import ChefSpecialsEngine
                         chef = ChefSpecialsEngine()
                         knowledge = rag.get_ingredient_knowledge(selected_ingredients[:6])
