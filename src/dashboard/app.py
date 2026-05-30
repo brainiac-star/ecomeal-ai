@@ -115,6 +115,93 @@ section[data-testid="stSidebar"] .stSlider label { color: #a0aec0; }
 """, unsafe_allow_html=True)
 
 
+# ── Plain-English explanation helpers ─────────────────────────────────────────
+def _nl_explain_row(row: "pd.Series") -> str:
+    dte = int(row.get("days_to_expiry", 0))
+    qty = float(row.get("quantity", 0))
+    daily = float(row.get("daily_consumption", 0.01))
+    shelf_pct = float(row.get("shelf_life_consumed_pct", 0))
+    waste_hist = float(row.get("wastage_history_pct", 0))
+    stock_days = qty / max(daily, 0.01)
+    overstock = stock_days > dte * 1.2
+
+    if dte == 0:
+        return "This item expires today — it must be used or discarded immediately."
+    if dte <= 2:
+        return f"Only {dte} day(s) left before this expires and there is more stock than can be consumed in time — urgent use is needed."
+    if overstock and dte <= 10:
+        return (
+            f"There are {stock_days:.0f} days worth of stock but only {dte} days until expiry, "
+            f"meaning a significant portion will likely go to waste."
+        )
+    if shelf_pct >= 0.8:
+        return f"{shelf_pct*100:.0f}% of this item's shelf life has already elapsed — it needs to be prioritised in the next few days."
+    if waste_hist >= 0.25:
+        return (
+            f"This ingredient has been wasted {waste_hist*100:.0f}% of the time historically, "
+            f"making it a repeat problem worth addressing in menu planning."
+        )
+    if overstock:
+        return (
+            f"Current stock ({qty:.1f} units) will last {stock_days:.0f} days at today's usage rate, "
+            f"but the item expires in {dte} days — consider increasing usage or reducing the next order."
+        )
+    return (
+        f"This item expires in {dte} days with {qty:.1f} units remaining. "
+        f"At the current usage rate it should be consumed in time, but close monitoring is advised."
+    )
+
+
+def _nl_factor_sentences(row: "pd.Series"):
+    dte = int(row.get("days_to_expiry", 0))
+    qty = float(row.get("quantity", 0))
+    daily = float(row.get("daily_consumption", 0.01))
+    shelf_pct = float(row.get("shelf_life_consumed_pct", 0))
+    stock_ratio = float(row.get("stock_expiry_ratio", 1))
+    waste_hist = float(row.get("wastage_history_pct", 0))
+    overstock = bool(row.get("overstock_flag", False))
+    stock_days = qty / max(daily, 0.01)
+    storage = str(row.get("storage_type", "")).lower()
+
+    risk, safe = [], []
+
+    if dte <= 3:
+        risk.append(f"Only {dte} day(s) remain before expiry.")
+    elif dte <= 7:
+        risk.append(f"Expiry is in {dte} days — within the critical planning window.")
+
+    if shelf_pct >= 0.75:
+        risk.append(f"{shelf_pct*100:.0f}% of the shelf life has been consumed.")
+
+    if overstock or stock_days > dte * 1.2:
+        risk.append(
+            f"Stock will last {stock_days:.0f} days but the item expires in {dte} — "
+            f"that's {stock_days - dte:.0f} extra days of surplus."
+        )
+    elif stock_ratio > 1.5:
+        risk.append(f"The stock-to-expiry ratio is {stock_ratio:.1f}x (ideal is below 1.0).")
+
+    if waste_hist >= 0.20:
+        risk.append(f"Historical waste rate for this ingredient is {waste_hist*100:.0f}%.")
+
+    if storage == "ambient" and dte <= 5:
+        risk.append("Ambient storage accelerates spoilage for short-dated items.")
+
+    # Safe factors
+    if dte > 14:
+        safe.append(f"Still {dte} days until expiry — enough time to plan usage.")
+    if daily >= qty / max(dte, 1):
+        safe.append("Daily consumption is high enough to use up stock before expiry.")
+    if shelf_pct < 0.4:
+        safe.append(f"Only {shelf_pct*100:.0f}% of shelf life used — item is still fresh.")
+    if waste_hist < 0.05:
+        safe.append(f"Very low historical waste rate ({waste_hist*100:.0f}%) for this ingredient.")
+    if storage == "frozen":
+        safe.append("Frozen storage significantly extends usable life.")
+
+    return risk, safe
+
+
 # ── Model loader ───────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
 def load_models(version: str = "v2"):  # bump version to bust cache
@@ -559,42 +646,37 @@ def main():
             sel = st.selectbox("Choose an ingredient to explain", df_pred["ingredient_name"].tolist()[:60])
             row_df = df_pred[df_pred["ingredient_name"] == sel].head(1)
             if not row_df.empty:
+                row = row_df.iloc[0]
                 shap_exp = wastage.explain(row_df, max_items=1)
                 from src.explainability.explainer import explain_item_risk
-                expl = explain_item_risk(row_df.iloc[0], shap_exp[0]["top_features"] if shap_exp else None)
+                shap_top = shap_exp[0]["top_features"] if shap_exp else None
+                expl = explain_item_risk(row, shap_top)
 
                 risk_colors = {"critical":"#fc5c7d","high":"#f7971e","medium":"#f6d365","low":"#56ab2f"}
                 lvl = expl["risk_level"]
                 color = risk_colors.get(lvl, "#a0aec0")
-                st.markdown(f"**Risk Level:** <span style='color:{color};font-weight:700;font-size:1.1rem'>{lvl.upper()}</span> &nbsp; Score: `{expl['risk_score']:.2f}`", unsafe_allow_html=True)
+                st.markdown(
+                    f"**Risk Level:** <span style='color:{color};font-weight:700;font-size:1.1rem'>"
+                    f"{lvl.upper()}</span> &nbsp; Score: `{expl['risk_score']:.2f}`",
+                    unsafe_allow_html=True,
+                )
 
-                # Plain-English summary from SHAP
-                if shap_exp and shap_exp[0].get("summary_sentence"):
-                    st.info(f"🧠 **AI Explanation:** {shap_exp[0]['summary_sentence']}")
+                # ── Plain-English explanation (always visible) ─────────────────
+                nl_sentence = _nl_explain_row(row)
+                st.info(f"🧠 **In plain English:** {nl_sentence}")
 
-                st.markdown(f"**Primary Reason:** {expl['primary_reason']}")
+                # ── Why factors ────────────────────────────────────────────────
+                risk_sentences, safe_sentences = _nl_factor_sentences(row)
+                if risk_sentences:
+                    with st.expander("🔴 Why it's at risk", expanded=True):
+                        for s in risk_sentences:
+                            st.markdown(f"- {s}")
+                if safe_sentences:
+                    with st.expander("🟢 What's working in its favour"):
+                        for s in safe_sentences:
+                            st.markdown(f"- {s}")
 
-                # Individual SHAP factor sentences
-                if shap_exp:
-                    top = shap_exp[0].get("top_features", [])
-                    risk_factors = [f for f in top if f["direction"] == "increases_risk"]
-                    safe_factors = [f for f in top if f["direction"] == "decreases_risk"]
-                    if risk_factors:
-                        with st.expander("🔴 Factors increasing waste risk"):
-                            for f in risk_factors:
-                                nl = f.get("natural_language") or f.get("feature", "").replace("_", " ").title()
-                                st.markdown(f"- {nl}")
-                    if safe_factors:
-                        with st.expander("🟢 Factors reducing waste risk"):
-                            for f in safe_factors:
-                                nl = f.get("natural_language") or f.get("feature", "").replace("_", " ").title()
-                                st.markdown(f"- {nl}")
-
-                if len(expl.get("all_reasons", [])) > 1:
-                    with st.expander("All rule-based signals"):
-                        for r in expl["all_reasons"]:
-                            st.markdown(f"- {r}")
-                st.success(f"**Recommended Action:** {expl['recommended_action']}")
+                st.success(f"✅ **Recommended Action:** {expl['recommended_action']}")
 
 
     # ── Tab 6: Raw Data ────────────────────────────────────────────────────────

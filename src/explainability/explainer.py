@@ -67,14 +67,14 @@ def explain_item_risk(row: pd.Series, shap_impacts: Optional[List[Dict]] = None)
     if waste_hist > 0.25:
         reasons.append(f"High historical waste rate: {waste_hist*100:.0f}%")
 
-    # SHAP-based reasons (from ML model)
+    # SHAP-based reasons (from ML model) — only add if not already covered above
     if shap_impacts:
         for impact in shap_impacts[:3]:
             feat = impact.get("feature", "")
             direction = impact.get("direction", "")
-            feat_desc = _FEATURE_DESCRIPTIONS.get(feat, feat)
-            if direction == "increases_risk":
-                reasons.append(f"ML model: {feat_desc} increases waste probability")
+            nl = impact.get("natural_language", "")
+            if direction == "increases_risk" and nl and len(reasons) < 3:
+                reasons.append(nl)
 
     if not reasons:
         reasons.append(f"Moderate risk based on combined inventory signals (score: {risk_score:.2f})")
