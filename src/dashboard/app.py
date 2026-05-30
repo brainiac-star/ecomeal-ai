@@ -14,7 +14,6 @@ from datetime import date, timedelta
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from src.utils.config import get_settings
-from src.models.wastage_predictor import _deduplicate_factors
 settings = get_settings()
 
 # ── Page config ────────────────────────────────────────────────────────────────
@@ -695,6 +694,7 @@ def main():
 
                 # ── SHAP factor sentences (model-driven, deduplicated) ─────────
                 if shap_exp:
+                    from src.models.wastage_predictor import _deduplicate_factors
                     top = shap_exp[0].get("top_features", [])
                     risk_factors, safe_factors = _deduplicate_factors(top)
                     risk_sentences = [f["natural_language"] for f in risk_factors if f.get("natural_language")]

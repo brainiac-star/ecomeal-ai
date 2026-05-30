@@ -20,7 +20,6 @@ from sklearn.metrics import (
 from sklearn.calibration import CalibratedClassifierCV
 import xgboost as xgb
 import lightgbm as lgb
-import shap
 
 from src.utils.logger import logger
 from src.utils.config import get_settings
