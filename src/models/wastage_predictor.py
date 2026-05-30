@@ -309,10 +309,48 @@ def _shap_to_sentence(feature: str, shap_val: float) -> str:
     return templates[direction]
 
 
+def _deduplicate_factors(top_features: List[Dict]) -> tuple:
+    """
+    Split features into risk/safe lists, keeping only the dominant direction
+    when the same semantic concept appears on both sides.
+    """
+    # Features that measure the same underlying concept — only keep the stronger signal
+    _SEMANTIC_GROUPS = [
+        {"stock_days_available", "stock_expiry_ratio", "overstock_flag"},
+        {"days_to_expiry", "shelf_life_consumed_pct", "days_since_purchase"},
+        {"quantity", "potential_waste_value"},
+        {"daily_consumption"},
+    ]
+
+    seen_groups: set = set()
+    risk_drivers, safe_drivers = [], []
+
+    for f in top_features:
+        feat = f["feature"]
+        group_id = next(
+            (i for i, g in enumerate(_SEMANTIC_GROUPS) if feat in g), None
+        )
+        direction = f["direction"]
+
+        if group_id is not None:
+            key = (group_id, direction)
+            conflict_key = (group_id, "decreases_risk" if direction == "increases_risk" else "increases_risk")
+            if conflict_key in seen_groups:
+                # Opposite direction already recorded for this group — skip weaker signal
+                continue
+            seen_groups.add(key)
+
+        if direction == "increases_risk":
+            risk_drivers.append(f)
+        else:
+            safe_drivers.append(f)
+
+    return risk_drivers, safe_drivers
+
+
 def _build_summary_sentence(top_features: List[Dict], row: "pd.Series") -> str:
     """Combine top SHAP drivers into a single plain-English summary sentence."""
-    risk_drivers = [f for f in top_features if f["direction"] == "increases_risk"]
-    safe_drivers = [f for f in top_features if f["direction"] == "decreases_risk"]
+    risk_drivers, safe_drivers = _deduplicate_factors(top_features)
 
     _labels = {
         "days_to_expiry": "expiry proximity",

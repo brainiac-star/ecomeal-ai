@@ -690,8 +690,21 @@ def main():
   {nl_sentence}
 </div>""", unsafe_allow_html=True)
 
-                # ── Why factors ────────────────────────────────────────────────
+                # ── Why factors (deduplicated — no contradictions) ─────────────
                 risk_sentences, safe_sentences = _nl_factor_sentences(row)
+                # Drop safe factors that contradict a risk factor on the same concept
+                risk_set = set(risk_sentences)
+                _CONTRADICTING_PAIRS = [
+                    ("Stock will last", "Current stock will last"),
+                    ("days of stock", "days worth"),
+                ]
+                safe_sentences = [
+                    s for s in safe_sentences
+                    if not any(
+                        any(kw in s and any(kw in r for r in risk_set) for kw in pair)
+                        for pair in _CONTRADICTING_PAIRS
+                    )
+                ]
                 if risk_sentences:
                     with st.expander("🔴 Why it's at risk", expanded=True):
                         for s in risk_sentences:
