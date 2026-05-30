@@ -203,7 +203,8 @@ def main():
                       "low": "background-color: #CCFFCC"}
             return colors.get(str(val), "")
 
-        styled = top_risk[top_cols].style.applymap(style_risk, subset=["risk_level_pred"] if "risk_level_pred" in top_cols else [])
+        style_fn = getattr(top_risk[top_cols].style, "map", None) or getattr(top_risk[top_cols].style, "applymap")
+        styled = style_fn(style_risk, subset=["risk_level_pred"] if "risk_level_pred" in top_cols else [])
         st.dataframe(styled, use_container_width=True, height=400)
 
         # Risk by category
