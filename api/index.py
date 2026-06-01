@@ -164,7 +164,10 @@ def health():
 
 @app.post("/api/v1/inventory/analyze")
 def analyze(payload: dict):
-    _load()
+    try:
+        _load()
+    except Exception as e:
+        return JSONResponse({"error": f"Model load failed: {e}", "model_dir": str(MODEL_DIR), "files": [str(p) for p in MODEL_DIR.glob("*")] if MODEL_DIR.exists() else []}, status_code=500)
     records = payload.get("items", [])
     if not records:
         return JSONResponse({"error": "No items provided"}, status_code=422)
