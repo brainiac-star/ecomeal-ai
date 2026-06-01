@@ -30,7 +30,6 @@ app.add_middleware(
 )
 
 # ── Lazy model cache ────────────────────────────────────────────────────────────
-_xgb = None
 _lgb = None
 _metrics = {}
 
@@ -46,10 +45,9 @@ MODEL_DIR = Path(__file__).parent.parent / "models"
 
 
 def _load():
-    global _xgb, _lgb, _metrics
-    if _xgb is not None:
+    global _lgb, _metrics
+    if _lgb is not None:
         return
-    _xgb = joblib.load(MODEL_DIR / "xgb_wastage.pkl")
     _lgb = joblib.load(MODEL_DIR / "lgb_wastage.pkl")
     try:
         _metrics = joblib.load(MODEL_DIR / "wastage_metrics.pkl")
@@ -92,9 +90,7 @@ def _prepare(records: list) -> pd.DataFrame:
 
 
 def _predict(X: pd.DataFrame):
-    p_xgb = _xgb.predict_proba(X)[:, 1]
-    p_lgb = _lgb.predict_proba(X)[:, 1]
-    return 0.55 * p_xgb + 0.45 * p_lgb
+    return _lgb.predict_proba(X)[:, 1]
 
 
 def _risk(p: float) -> str:
