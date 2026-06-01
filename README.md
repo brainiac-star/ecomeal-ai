@@ -2,9 +2,10 @@
 
 AI-powered food waste prediction and recommendation system for restaurants. Predicts waste risk, forecasts ingredient demand, detects inventory anomalies, and generates AI-powered Chef Specials for expiring ingredients.
 
-**🚀 Live Demo:** [https://ecomeal-ai-xlpkjjudmoxh5zwwegnuhp.streamlit.app/](https://ecomeal-ai-xlpkjjudmoxh5zwwegnuhp.streamlit.app/)
+**🚀 Live Demo (Dashboard):** [https://ecomeal-ai-xlpkjjudmoxh5zwwegnuhp.streamlit.app/](https://ecomeal-ai-xlpkjjudmoxh5zwwegnuhp.streamlit.app/)
+> If the app shows "This app has gone to sleep", click **"Yes, get this app back up!"** — it wakes in ~30 seconds. No login required.
 
-**⚡ API (Vercel):** [https://ecomeal-ai-dsdv.vercel.app/docs](https://ecomeal-ai-dsdv.vercel.app/docs)
+**⚡ API + UI (Vercel):** [https://ecomeal-ai-dsdv.vercel.app](https://ecomeal-ai-dsdv.vercel.app) · [API Docs](https://ecomeal-ai-dsdv.vercel.app/docs)
 
 ---
 
