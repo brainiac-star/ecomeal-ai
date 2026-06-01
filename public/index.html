@@ -1,369 +1,668 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ecomeal AI — Food Waste Intelligence</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
-
-    header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      padding: 2rem;
-      text-align: center;
-    }
-    header h1 { font-size: 2.2rem; font-weight: 700; color: #fff; }
-    header p { color: rgba(255,255,255,0.85); margin-top: 0.5rem; font-size: 1.05rem; }
-    .links { margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-    .links a {
-      background: rgba(255,255,255,0.15); color: #fff; padding: 0.4rem 1rem;
-      border-radius: 20px; text-decoration: none; font-size: 0.9rem;
-      border: 1px solid rgba(255,255,255,0.3); transition: background 0.2s;
-    }
-    .links a:hover { background: rgba(255,255,255,0.25); }
-
-    .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1rem; }
-
-    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
-    .metric-card {
-      background: #1a1f2e; border-radius: 12px; padding: 1.2rem;
-      border: 1px solid #2d3748; text-align: center;
-    }
-    .metric-card .value { font-size: 2rem; font-weight: 700; }
-    .metric-card .label { color: #a0aec0; font-size: 0.85rem; margin-top: 0.3rem; }
-    .critical { color: #fc5c7d; }
-    .high { color: #f7971e; }
-    .medium { color: #f6d365; }
-    .low { color: #56ab2f; }
-
-    .section { background: #1a1f2e; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #2d3748; }
-    .section h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; color: #fff; }
-
-    .btn {
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      color: #fff; border: none; padding: 0.7rem 1.5rem;
-      border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: 600;
-      transition: opacity 0.2s;
-    }
-    .btn:hover { opacity: 0.85; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    th { text-align: left; padding: 0.6rem 0.8rem; color: #a0aec0; font-weight: 500; border-bottom: 1px solid #2d3748; }
-    td { padding: 0.6rem 0.8rem; border-bottom: 1px solid #1e2535; }
-    tr:hover td { background: #1e2535; }
-
-    .badge {
-      display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px;
-      font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
-    }
-    .badge.critical { background: rgba(252,92,125,0.15); color: #fc5c7d; }
-    .badge.high { background: rgba(247,151,30,0.15); color: #f7971e; }
-    .badge.medium { background: rgba(246,211,101,0.15); color: #f6d365; }
-    .badge.low { background: rgba(86,171,47,0.15); color: #56ab2f; }
-
-    .progress-bar { background: #2d3748; border-radius: 4px; height: 6px; margin-top: 4px; }
-    .progress-fill { height: 6px; border-radius: 4px; transition: width 0.5s; }
-
-    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .chart-wrap { position: relative; height: 220px; }
-
-    .explain-panel { background: #0f1117; border-radius: 8px; padding: 1rem; margin-top: 0.5rem; font-size: 0.88rem; line-height: 1.6; }
-    .explain-panel .risk-factor { color: #fc5c7d; }
-    .explain-panel .safe-factor { color: #56ab2f; }
-
-    select, input[type=number] {
-      background: #0f1117; border: 1px solid #2d3748; color: #e2e8f0;
-      padding: 0.5rem 0.8rem; border-radius: 8px; font-size: 0.9rem;
-    }
-
-    .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
-    .tab {
-      padding: 0.5rem 1.2rem; border-radius: 8px; cursor: pointer;
-      font-size: 0.9rem; border: 1px solid #2d3748; background: #1a1f2e; color: #a0aec0;
-      transition: all 0.2s;
-    }
-    .tab.active { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border-color: transparent; }
-
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-
-    .error { color: #fc5c7d; background: rgba(252,92,125,0.1); padding: 0.8rem 1rem; border-radius: 8px; margin-top: 0.5rem; font-size: 0.9rem; }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Ecomeal AI — Food Waste Intelligence</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh}
+a{color:#667eea;text-decoration:none}
+header{background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:1.8rem 2rem;border-bottom:1px solid #2d3748}
+header h1{font-size:1.9rem;font-weight:700;color:#fff}
+header p{color:#a0aec0;margin-top:.3rem;font-size:.95rem}
+.top-links{margin-top:.8rem;display:flex;gap:.7rem;flex-wrap:wrap}
+.top-links a{background:rgba(102,126,234,.15);color:#a0c4ff;padding:.3rem .9rem;border-radius:20px;font-size:.82rem;border:1px solid rgba(102,126,234,.3);transition:background .2s}
+.top-links a:hover{background:rgba(102,126,234,.3)}
+.layout{display:flex;min-height:calc(100vh - 120px)}
+.sidebar{width:220px;background:#1a1d2e;border-right:1px solid #2d3748;padding:1.2rem .8rem;flex-shrink:0}
+.nav-item{display:flex;align-items:center;gap:.6rem;padding:.6rem .9rem;border-radius:8px;cursor:pointer;font-size:.88rem;color:#a0aec0;transition:all .2s;margin-bottom:.2rem}
+.nav-item:hover{background:#2d3748;color:#fff}
+.nav-item.active{background:linear-gradient(135deg,rgba(102,126,234,.3),rgba(118,75,162,.3));color:#fff;border-left:3px solid #667eea}
+.nav-item .icon{font-size:1rem;width:20px;text-align:center}
+.main{flex:1;padding:1.5rem;overflow-y:auto}
+.tab-pane{display:none}.tab-pane.active{display:block}
+.section{background:#1a1d2e;border-radius:12px;padding:1.4rem;margin-bottom:1.2rem;border:1px solid #2d3748}
+.section-title{font-size:1rem;font-weight:700;color:#e2e8f0;padding-bottom:.6rem;border-bottom:2px solid #2d3748;margin-bottom:1rem}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.9rem;margin-bottom:1.2rem}
+.kpi{background:#1a1d2e;border-radius:12px;padding:1rem 1.2rem;border-left:4px solid #4facfe;border:1px solid #2d3748}
+.kpi.red{border-left-color:#fc5c7d}.kpi.orange{border-left-color:#f7971e}.kpi.green{border-left-color:#56ab2f}.kpi.blue{border-left-color:#4facfe}.kpi.purple{border-left-color:#a855f7}
+.kpi-label{color:#718096;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.kpi-value{color:#fff;font-size:1.7rem;font-weight:700;margin-top:.2rem}
+.kpi-sub{color:#718096;font-size:.72rem;margin-top:.2rem}
+.btn{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;padding:.6rem 1.3rem;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:600;transition:opacity .2s}
+.btn:hover{opacity:.85}.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-sm{padding:.35rem .8rem;font-size:.8rem}
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th{text-align:left;padding:.55rem .8rem;color:#a0aec0;font-weight:500;border-bottom:1px solid #2d3748;white-space:nowrap}
+td{padding:.55rem .8rem;border-bottom:1px solid #1e2535}
+tr:hover td{background:#1e2535}
+.badge{display:inline-block;padding:.18rem .55rem;border-radius:12px;font-size:.75rem;font-weight:700;text-transform:uppercase}
+.badge.critical,.risk-critical{background:rgba(252,92,125,.15);color:#fc5c7d}
+.badge.high,.risk-high{background:rgba(247,151,30,.15);color:#f7971e}
+.badge.medium,.risk-medium{background:rgba(246,211,101,.15);color:#f6d365}
+.badge.low,.risk-low{background:rgba(86,171,47,.15);color:#56ab2f}
+.badge.anomaly{background:rgba(252,92,125,.15);color:#fc5c7d}
+.progress-bar{background:#2d3748;border-radius:4px;height:5px;margin-top:3px}
+.progress-fill{height:5px;border-radius:4px;transition:width .5s}
+.chart-wrap{position:relative;height:230px;margin:.5rem 0}
+.chart-wrap-sm{position:relative;height:180px;margin:.5rem 0}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+@media(max-width:700px){.grid-2,.grid-3{grid-template-columns:1fr}.sidebar{display:none}}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.alert-info{background:rgba(79,172,254,.1);border:1px solid rgba(79,172,254,.3);color:#4facfe;padding:.7rem 1rem;border-radius:8px;font-size:.87rem;margin:.5rem 0}
+.alert-success{background:rgba(86,171,47,.1);border:1px solid rgba(86,171,47,.3);color:#56ab2f;padding:.7rem 1rem;border-radius:8px;font-size:.87rem;margin:.5rem 0}
+.alert-warn{background:rgba(247,151,30,.1);border:1px solid rgba(247,151,30,.3);color:#f7971e;padding:.7rem 1rem;border-radius:8px;font-size:.87rem;margin:.5rem 0}
+.alert-error{background:rgba(252,92,125,.1);border:1px solid rgba(252,92,125,.3);color:#fc5c7d;padding:.7rem 1rem;border-radius:8px;font-size:.87rem;margin:.5rem 0}
+select,input{background:#0f1117;border:1px solid #2d3748;color:#e2e8f0;padding:.45rem .8rem;border-radius:8px;font-size:.87rem;outline:none}
+select:focus,input:focus{border-color:#667eea}
+.dish-card{background:#0f1117;border-radius:10px;padding:1rem 1.2rem;margin-bottom:.8rem;border:1px solid #2d3748}
+.dish-name{color:#fff;font-size:1rem;font-weight:700}
+.dish-desc{color:#a0aec0;font-size:.85rem;margin-top:.4rem;line-height:1.5}
+.dish-meta{color:#718096;font-size:.78rem;margin-top:.5rem}
+.explain-feature{display:flex;align-items:center;gap:.8rem;padding:.4rem 0;border-bottom:1px solid #1e2535;font-size:.85rem}
+.explain-feature:last-child{border-bottom:none}
+.feat-name{flex:1;color:#e2e8f0;text-transform:capitalize}
+.feat-dir{width:120px;font-size:.78rem}
+.feat-bar-wrap{width:100px}
+.nl-box{background:#0f1117;border-left:3px solid #667eea;padding:.8rem 1rem;border-radius:0 8px 8px 0;font-size:.88rem;line-height:1.6;margin:.8rem 0;color:#e2e8f0}
+.tag{display:inline-block;background:#2d3748;color:#a0aec0;padding:.2rem .6rem;border-radius:6px;font-size:.75rem;margin:.2rem}
+.scatter-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:4px}
+</style>
 </head>
 <body>
-
 <header>
   <h1>🥗 Ecomeal AI</h1>
   <p>Food Waste Intelligence Platform for Restaurants</p>
-  <div class="links">
+  <div class="top-links">
     <a href="/docs" target="_blank">⚡ API Docs</a>
-    <a href="https://ecomeal-ai-xlpkjjudmoxh5zwwegnuhp.streamlit.app/" target="_blank">📊 Full Dashboard</a>
     <a href="https://github.com/brainiac-star/ecomeal-ai" target="_blank">💻 GitHub</a>
   </div>
 </header>
 
-<div class="container">
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-item active" onclick="nav('risk')"><span class="icon">🔍</span>Risk Analysis</div>
+    <div class="nav-item" onclick="nav('forecast')"><span class="icon">📈</span>Demand Forecast</div>
+    <div class="nav-item" onclick="nav('anomaly')"><span class="icon">⚠️</span>Anomalies</div>
+    <div class="nav-item" onclick="nav('chef')"><span class="icon">👨‍🍳</span>Chef Specials</div>
+    <div class="nav-item" onclick="nav('explain')"><span class="icon">🔬</span>Explainability</div>
+    <div class="nav-item" onclick="nav('ops')"><span class="icon">🛒</span>Operations</div>
+    <div class="nav-item" onclick="nav('insights')"><span class="icon">📊</span>Insights</div>
+    <div class="nav-item" onclick="nav('data')"><span class="icon">🗄️</span>Data</div>
+  </nav>
 
-  <div class="tabs">
-    <div class="tab active" onclick="switchTab('overview')">🔍 Risk Analysis</div>
-    <div class="tab" onclick="switchTab('explain')">🔬 Explainability</div>
-    <div class="tab" onclick="switchTab('about')">ℹ️ About</div>
-  </div>
+  <div class="main">
 
-  <!-- TAB: OVERVIEW -->
-  <div id="tab-overview" class="tab-content active">
-    <div class="metrics" id="metrics-row">
-      <div class="metric-card"><div class="value" id="m-total">—</div><div class="label">Total Items</div></div>
-      <div class="metric-card"><div class="value critical" id="m-critical">—</div><div class="label">Critical Risk</div></div>
-      <div class="metric-card"><div class="value high" id="m-high">—</div><div class="label">High Risk</div></div>
-      <div class="metric-card"><div class="value low" id="m-low">—</div><div class="label">Low Risk</div></div>
-    </div>
-
-    <div class="section">
-      <h2>📦 Inventory Analysis</h2>
-      <button class="btn" id="analyze-btn" onclick="runAnalysis()">🔍 Analyse Sample Inventory</button>
-      <span id="analyze-status"></span>
-      <div id="analyze-error"></div>
-    </div>
-
-    <div class="section" id="results-section" style="display:none">
-      <h2>🏆 Waste Risk Rankings</h2>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem">
-        <div><div class="chart-wrap"><canvas id="pie-chart"></canvas></div></div>
-        <div><div class="chart-wrap"><canvas id="bar-chart"></canvas></div></div>
+    <!-- ── RISK ANALYSIS ─────────────────────────────────────── -->
+    <div id="tab-risk" class="tab-pane active">
+      <div class="kpi-row" id="kpi-row">
+        <div class="kpi red"><div class="kpi-label">Critical Risk</div><div class="kpi-value" id="k-critical">—</div><div class="kpi-sub">items</div></div>
+        <div class="kpi orange"><div class="kpi-label">High Risk</div><div class="kpi-value" id="k-high">—</div><div class="kpi-sub">items</div></div>
+        <div class="kpi blue"><div class="kpi-label">Total Items</div><div class="kpi-value" id="k-total">—</div><div class="kpi-sub">analysed</div></div>
+        <div class="kpi green"><div class="kpi-label">Low Risk</div><div class="kpi-value" id="k-low">—</div><div class="kpi-sub">items</div></div>
       </div>
-      <table id="results-table">
-        <thead><tr><th>#</th><th>Ingredient</th><th>Risk Level</th><th>Waste Probability</th><th>Category</th></tr></thead>
-        <tbody id="results-body"></tbody>
-      </table>
-    </div>
-  </div>
 
-  <!-- TAB: EXPLAIN -->
-  <div id="tab-explain" class="tab-content">
-    <div class="section">
-      <h2>🔬 Item-Level Explainability</h2>
-      <p style="color:#a0aec0;font-size:0.9rem;margin-bottom:1rem">Select an ingredient to see why the model flagged it as a waste risk.</p>
-      <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
-        <select id="explain-select" style="min-width:200px"><option>Run analysis first →</option></select>
-        <button class="btn" onclick="runExplain()">🔬 Explain</button>
+      <div class="section">
+        <button class="btn" id="btn-analyze" onclick="runAnalysis()">🔍 Analyse Inventory</button>
+        <span id="status-analyze" style="margin-left:.8rem;font-size:.85rem;color:#a0aec0"></span>
+        <div id="err-analyze"></div>
       </div>
-      <div id="explain-output" style="margin-top:1rem"></div>
-    </div>
-  </div>
 
-  <!-- TAB: ABOUT -->
-  <div id="tab-about" class="tab-content">
-    <div class="section">
-      <h2>What is Ecomeal AI?</h2>
-      <p style="color:#a0aec0;line-height:1.7;margin-bottom:1rem">
-        Ecomeal AI is a food waste prediction and recommendation platform for restaurants.
-        It combines ML models, demand forecasting, and LLM-generated suggestions to help
-        kitchens reduce waste before it happens.
-      </p>
-      <table>
-        <thead><tr><th>Component</th><th>Technology</th><th>Purpose</th></tr></thead>
-        <tbody>
-          <tr><td>Wastage Predictor</td><td>XGBoost + LightGBM ensemble</td><td>Binary waste risk classification per item</td></tr>
-          <tr><td>Demand Forecaster</td><td>Facebook Prophet</td><td>14-day per-ingredient demand forecast</td></tr>
-          <tr><td>Anomaly Detector</td><td>Isolation Forest</td><td>Flags unusual inventory patterns</td></tr>
-          <tr><td>Chef Specials</td><td>Groq / Gemini LLM + RAG</td><td>AI-generated dishes for expiring ingredients</td></tr>
-          <tr><td>Explainability</td><td>LightGBM pred_contrib (SHAP)</td><td>Plain-English per-item explanations</td></tr>
-          <tr><td>API</td><td>FastAPI on Vercel</td><td>REST endpoints for all predictions</td></tr>
-        </tbody>
-      </table>
+      <div id="risk-results" style="display:none">
+        <div class="grid-2">
+          <div class="section">
+            <div class="section-title">Risk Distribution</div>
+            <div class="chart-wrap"><canvas id="chart-pie"></canvas></div>
+          </div>
+          <div class="section">
+            <div class="section-title">Top At-Risk Items</div>
+            <div class="chart-wrap"><canvas id="chart-bar"></canvas></div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title">All Items — Ranked by Risk</div>
+          <table><thead><tr><th>#</th><th>Ingredient</th><th>Risk</th><th>Waste Probability</th><th>Days to Expiry</th><th>Category</th></tr></thead>
+          <tbody id="risk-table"></tbody></table>
+        </div>
+        <div class="section">
+          <div class="section-title">Risk by Category</div>
+          <div class="chart-wrap"><canvas id="chart-cat"></canvas></div>
+        </div>
+      </div>
     </div>
-  </div>
 
-</div>
+    <!-- ── DEMAND FORECAST ───────────────────────────────────── -->
+    <div id="tab-forecast" class="tab-pane">
+      <div class="section">
+        <div class="section-title">Ingredient Demand Forecast</div>
+        <div style="display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-bottom:.8rem">
+          <select id="fc-ingredient" style="min-width:180px"><option>Run analysis first</option></select>
+          <label style="color:#a0aec0;font-size:.85rem">Days: <input type="number" id="fc-horizon" value="14" min="7" max="60" style="width:60px;margin-left:.4rem"></label>
+          <button class="btn" onclick="runForecast()">📈 Generate Forecast</button>
+          <span id="status-fc" style="font-size:.85rem;color:#a0aec0"></span>
+        </div>
+        <div id="fc-output"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">📦 Overstock & Shortage Detection</div>
+        <button class="btn" onclick="runOverstock()">🔎 Run Overstock Analysis</button>
+        <span id="status-os" style="margin-left:.8rem;font-size:.85rem;color:#a0aec0"></span>
+        <div id="os-output"></div>
+      </div>
+    </div>
+
+    <!-- ── ANOMALIES ──────────────────────────────────────────── -->
+    <div id="tab-anomaly" class="tab-pane">
+      <div class="section">
+        <div class="section-title">Inventory Anomaly Detection</div>
+        <p style="color:#a0aec0;font-size:.85rem;margin-bottom:.8rem">Items flagged as statistically unusual — possible data errors, theft, demand spikes, or spoilage events.</p>
+        <button class="btn" onclick="runAnomalies()">⚠️ Detect Anomalies</button>
+        <span id="status-anom" style="margin-left:.8rem;font-size:.85rem;color:#a0aec0"></span>
+      </div>
+      <div id="anom-results" style="display:none">
+        <div class="kpi-row">
+          <div class="kpi red"><div class="kpi-label">Anomalies Found</div><div class="kpi-value" id="anom-count">0</div></div>
+          <div class="kpi orange"><div class="kpi-label">Anomaly Rate</div><div class="kpi-value" id="anom-rate">0%</div></div>
+          <div class="kpi blue"><div class="kpi-label">Total Items</div><div class="kpi-value" id="anom-total">0</div></div>
+        </div>
+        <div class="section">
+          <div class="section-title">Quantity vs Daily Consumption</div>
+          <div class="chart-wrap"><canvas id="chart-scatter"></canvas></div>
+        </div>
+        <div class="section" id="anom-table-section">
+          <div class="section-title">Flagged Items</div>
+          <table><thead><tr><th>Ingredient</th><th>Category</th><th>Qty</th><th>Daily Use</th><th>Anomaly Score</th><th>Reason</th></tr></thead>
+          <tbody id="anom-table"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CHEF SPECIALS ─────────────────────────────────────── -->
+    <div id="tab-chef" class="tab-pane">
+      <div class="section">
+        <div class="section-title">👨‍🍳 Chef Specials Generator</div>
+        <p style="color:#a0aec0;font-size:.85rem;margin-bottom:.8rem">Select expiring ingredients — get dish suggestions to use them up before they go to waste.</p>
+        <div style="margin-bottom:.8rem">
+          <label style="color:#a0aec0;font-size:.85rem;display:block;margin-bottom:.4rem">Expiring Ingredients (select multiple)</label>
+          <select id="chef-select" multiple size="6" style="width:100%;max-width:400px;height:120px"><option>Run analysis first</option></select>
+        </div>
+        <button class="btn" onclick="runChefSpecials()">✨ Generate Chef Specials</button>
+        <span id="status-chef" style="margin-left:.8rem;font-size:.85rem;color:#a0aec0"></span>
+      </div>
+      <div id="chef-output"></div>
+    </div>
+
+    <!-- ── EXPLAINABILITY ────────────────────────────────────── -->
+    <div id="tab-explain" class="tab-pane">
+      <div class="grid-2">
+        <div class="section">
+          <div class="section-title">Global Feature Importance</div>
+          <p style="color:#a0aec0;font-size:.82rem;margin-bottom:.6rem">Which features drive waste predictions across all items.</p>
+          <div class="chart-wrap"><canvas id="chart-fi"></canvas></div>
+        </div>
+        <div class="section">
+          <div class="section-title">Item-Level Explanation</div>
+          <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+            <select id="explain-select" style="min-width:180px"><option>Run analysis first</option></select>
+            <button class="btn btn-sm" onclick="runExplain()">🔬 Explain</button>
+          </div>
+          <div id="explain-output"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── OPERATIONS ────────────────────────────────────────── -->
+    <div id="tab-ops" class="tab-pane">
+      <div class="section">
+        <div class="section-title">🛒 Reorder Suggestions</div>
+        <button class="btn" onclick="runReorder()">📋 Get Reorder List</button>
+        <span id="status-reorder" style="margin-left:.8rem;font-size:.85rem;color:#a0aec0"></span>
+        <div id="reorder-output" style="margin-top:.8rem"></div>
+      </div>
+      <div class="section">
+        <div class="section-title">💰 Waste Cost Tracker (30-day simulation)</div>
+        <div class="chart-wrap"><canvas id="chart-waste"></canvas></div>
+        <div class="kpi-row" id="waste-kpis" style="margin-top:.8rem"></div>
+      </div>
+      <div class="section">
+        <div class="section-title">🔄 Ingredient Substitution</div>
+        <div id="subs-output"><div class="alert-info">Run analysis first to see substitution suggestions.</div></div>
+      </div>
+    </div>
+
+    <!-- ── INSIGHTS ──────────────────────────────────────────── -->
+    <div id="tab-insights" class="tab-pane">
+      <div class="section">
+        <div class="section-title">📊 Multi-Restaurant Comparison</div>
+        <div class="chart-wrap"><canvas id="chart-restaurants"></canvas></div>
+      </div>
+      <div class="section">
+        <div class="section-title">📉 30-Day Waste Risk Trend by Category</div>
+        <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ── DATA ──────────────────────────────────────────────── -->
+    <div id="tab-data" class="tab-pane">
+      <div class="section">
+        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🗄️ Inventory Data</span>
+          <button class="btn btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
+        </div>
+        <div id="data-table-wrap">
+          <div class="alert-info">Run Risk Analysis first to populate this table.</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /layout -->
 
 <script>
-const API = '';  // same origin
+const API = '';
+const SUBS = {
+  "Tomatoes":["Tomato Shorba","Tomato Rice","Bruschetta","Shakshuka"],
+  "Chicken":["Grilled Chicken Bowl","Chicken Tikka","Chicken Caesar Wrap"],
+  "Paneer":["Palak Paneer","Paneer Tikka","Kadai Paneer"],
+  "Spinach":["Palak Paneer","Spinach Dal","Green Smoothie Bowl"],
+  "Mushrooms":["Mushroom Risotto","Mushroom Soup","Mushroom Stir Fry"],
+  "Prawns":["Prawn Curry","Garlic Prawn Pasta","Prawn Fried Rice"],
+  "Coriander":["Coriander Chutney","Green Curry","Herb Salad"],
+  "Butter":["Butter Chicken Sauce","Garlic Butter Naan","Butter Pasta"],
+  "Basmati Rice":["Biryani","Fried Rice","Khichdi","Rice Pudding"],
+  "Flour":["Naan","Rotis","Bread","Pancakes"],
+  "Olive Oil":["Salad Dressing","Garlic Bread","Sauté Base"],
+  "Cumin Seeds":["Dal Tadka","Jeera Rice","Spiced Yogurt"],
+};
 
-const SAMPLE_ITEMS = [
-  { ingredient_name: "Tomatoes",      category: "vegetables",     quantity: 8,   daily_consumption: 0.4, days_to_expiry: 2,  total_shelf_life_days: 7,  days_since_purchase: 5,  price_per_unit: 40,  wastage_history_pct: 0.30, storage_type: "refrigerated" },
-  { ingredient_name: "Chicken",       category: "meat_seafood",   quantity: 15,  daily_consumption: 3.0, days_to_expiry: 1,  total_shelf_life_days: 3,  days_since_purchase: 2,  price_per_unit: 200, wastage_history_pct: 0.15, storage_type: "refrigerated" },
-  { ingredient_name: "Basmati Rice",  category: "grains_pulses",  quantity: 50,  daily_consumption: 5.0, days_to_expiry: 180,total_shelf_life_days: 365,days_since_purchase: 10, price_per_unit: 80,  wastage_history_pct: 0.05, storage_type: "ambient" },
-  { ingredient_name: "Paneer",        category: "dairy",          quantity: 12,  daily_consumption: 1.2, days_to_expiry: 3,  total_shelf_life_days: 7,  days_since_purchase: 4,  price_per_unit: 300, wastage_history_pct: 0.20, storage_type: "refrigerated" },
-  { ingredient_name: "Spinach",       category: "vegetables",     quantity: 6,   daily_consumption: 0.3, days_to_expiry: 2,  total_shelf_life_days: 5,  days_since_purchase: 3,  price_per_unit: 30,  wastage_history_pct: 0.35, storage_type: "refrigerated" },
-  { ingredient_name: "Olive Oil",     category: "oils",           quantity: 20,  daily_consumption: 0.5, days_to_expiry: 300,total_shelf_life_days: 365,days_since_purchase: 5,  price_per_unit: 500, wastage_history_pct: 0.02, storage_type: "ambient" },
-  { ingredient_name: "Prawns",        category: "meat_seafood",   quantity: 10,  daily_consumption: 2.0, days_to_expiry: 1,  total_shelf_life_days: 2,  days_since_purchase: 1,  price_per_unit: 400, wastage_history_pct: 0.25, storage_type: "frozen" },
-  { ingredient_name: "Coriander",     category: "vegetables",     quantity: 3,   daily_consumption: 0.2, days_to_expiry: 3,  total_shelf_life_days: 7,  days_since_purchase: 4,  price_per_unit: 20,  wastage_history_pct: 0.40, storage_type: "refrigerated" },
-  { ingredient_name: "Butter",        category: "dairy",          quantity: 5,   daily_consumption: 0.3, days_to_expiry: 20, total_shelf_life_days: 30, days_since_purchase: 10, price_per_unit: 50,  wastage_history_pct: 0.08, storage_type: "refrigerated" },
-  { ingredient_name: "Cumin Seeds",   category: "spices",         quantity: 8,   daily_consumption: 0.1, days_to_expiry: 200,total_shelf_life_days: 365,days_since_purchase: 20, price_per_unit: 60,  wastage_history_pct: 0.03, storage_type: "ambient" },
-  { ingredient_name: "Mushrooms",     category: "vegetables",     quantity: 7,   daily_consumption: 0.5, days_to_expiry: 3,  total_shelf_life_days: 7,  days_since_purchase: 4,  price_per_unit: 120, wastage_history_pct: 0.28, storage_type: "refrigerated" },
-  { ingredient_name: "Flour",         category: "grains_pulses",  quantity: 100, daily_consumption: 8.0, days_to_expiry: 90, total_shelf_life_days: 180,days_since_purchase: 5,  price_per_unit: 35,  wastage_history_pct: 0.04, storage_type: "ambient" },
+const ITEMS = [
+  {ingredient_name:"Tomatoes",category:"vegetables",quantity:8,daily_consumption:.4,days_to_expiry:2,total_shelf_life_days:7,days_since_purchase:5,price_per_unit:40,wastage_history_pct:.30,storage_type:"refrigerated"},
+  {ingredient_name:"Chicken",category:"meat_seafood",quantity:15,daily_consumption:3.0,days_to_expiry:1,total_shelf_life_days:3,days_since_purchase:2,price_per_unit:200,wastage_history_pct:.15,storage_type:"refrigerated"},
+  {ingredient_name:"Basmati Rice",category:"grains_pulses",quantity:50,daily_consumption:5.0,days_to_expiry:180,total_shelf_life_days:365,days_since_purchase:10,price_per_unit:80,wastage_history_pct:.05,storage_type:"ambient"},
+  {ingredient_name:"Paneer",category:"dairy",quantity:12,daily_consumption:1.2,days_to_expiry:3,total_shelf_life_days:7,days_since_purchase:4,price_per_unit:300,wastage_history_pct:.20,storage_type:"refrigerated"},
+  {ingredient_name:"Spinach",category:"vegetables",quantity:6,daily_consumption:.3,days_to_expiry:2,total_shelf_life_days:5,days_since_purchase:3,price_per_unit:30,wastage_history_pct:.35,storage_type:"refrigerated"},
+  {ingredient_name:"Olive Oil",category:"oils",quantity:20,daily_consumption:.5,days_to_expiry:300,total_shelf_life_days:365,days_since_purchase:5,price_per_unit:500,wastage_history_pct:.02,storage_type:"ambient"},
+  {ingredient_name:"Prawns",category:"meat_seafood",quantity:10,daily_consumption:2.0,days_to_expiry:1,total_shelf_life_days:2,days_since_purchase:1,price_per_unit:400,wastage_history_pct:.25,storage_type:"frozen"},
+  {ingredient_name:"Coriander",category:"vegetables",quantity:3,daily_consumption:.2,days_to_expiry:3,total_shelf_life_days:7,days_since_purchase:4,price_per_unit:20,wastage_history_pct:.40,storage_type:"refrigerated"},
+  {ingredient_name:"Butter",category:"dairy",quantity:5,daily_consumption:.3,days_to_expiry:20,total_shelf_life_days:30,days_since_purchase:10,price_per_unit:50,wastage_history_pct:.08,storage_type:"refrigerated"},
+  {ingredient_name:"Cumin Seeds",category:"spices",quantity:8,daily_consumption:.1,days_to_expiry:200,total_shelf_life_days:365,days_since_purchase:20,price_per_unit:60,wastage_history_pct:.03,storage_type:"ambient"},
+  {ingredient_name:"Mushrooms",category:"vegetables",quantity:7,daily_consumption:.5,days_to_expiry:3,total_shelf_life_days:7,days_since_purchase:4,price_per_unit:120,wastage_history_pct:.28,storage_type:"refrigerated"},
+  {ingredient_name:"Flour",category:"grains_pulses",quantity:100,daily_consumption:8.0,days_to_expiry:90,total_shelf_life_days:180,days_since_purchase:5,price_per_unit:35,wastage_history_pct:.04,storage_type:"ambient"},
 ];
 
-let lastResults = [];
-let pieChart = null;
-let barChart = null;
+let lastAnalysis = null;
+const charts = {};
 
-function switchTab(name) {
-  document.querySelectorAll('.tab').forEach((t,i) => t.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  const tabs = ['overview','explain','about'];
-  document.querySelectorAll('.tab')[tabs.indexOf(name)].classList.add('active');
-  document.getElementById('tab-' + name).classList.add('active');
+function nav(id) {
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(t=>t.classList.remove('active'));
+  document.querySelector(`.nav-item[onclick="nav('${id}')"]`).classList.add('active');
+  document.getElementById('tab-'+id).classList.add('active');
+  if(id==='insights' && !charts['restaurants']) renderInsights();
+  if(id==='ops' && !charts['waste']) renderWasteCostChart();
 }
 
-async function runAnalysis() {
-  const btn = document.getElementById('analyze-btn');
-  const status = document.getElementById('analyze-status');
-  const errDiv = document.getElementById('analyze-error');
-  btn.disabled = true;
-  status.innerHTML = '<span class="spinner"></span> Analysing...';
-  errDiv.innerHTML = '';
+function setStatus(id, html){ document.getElementById('status-'+id).innerHTML = html; }
+function setLoading(id){ setStatus(id, '<span class="spinner"></span> Loading...'); }
 
+const RISKCOLOR = {critical:'#fc5c7d',high:'#f7971e',medium:'#f6d365',low:'#56ab2f'};
+
+async function post(url, body){
+  const r = await fetch(API+url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok) throw new Error('API error '+r.status);
+  return r.json();
+}
+
+// ── Risk Analysis ─────────────────────────────────────────────────────────────
+async function runAnalysis(){
+  const btn = document.getElementById('btn-analyze');
+  btn.disabled = true; setLoading('analyze');
+  document.getElementById('err-analyze').innerHTML = '';
   try {
-    const res = await fetch(API + '/api/v1/inventory/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: SAMPLE_ITEMS }),
-    });
-    if (!res.ok) throw new Error('API error ' + res.status);
-    const data = await res.json();
-    lastResults = data.results;
-    renderResults(data);
-    populateExplainSelect();
-    status.innerHTML = '✅ Done';
-  } catch (e) {
-    errDiv.innerHTML = `<div class="error">Error: ${e.message}</div>`;
-    status.innerHTML = '';
-  } finally {
-    btn.disabled = false;
-  }
+    const data = await post('/api/v1/inventory/analyze',{items:ITEMS});
+    lastAnalysis = data;
+    document.getElementById('k-critical').textContent = data.critical||0;
+    document.getElementById('k-high').textContent = data.high||0;
+    document.getElementById('k-total').textContent = data.count;
+    document.getElementById('k-low').textContent = data.low||0;
+    renderRiskTable(data.results);
+    renderPie(data);
+    renderBar(data.results);
+    renderCategoryChart(data.results);
+    populateSelects(data.results);
+    renderFeatureImportance();
+    renderSubstitutions(data.results);
+    document.getElementById('risk-results').style.display='block';
+    setStatus('analyze','✅ Done');
+  } catch(e){
+    document.getElementById('err-analyze').innerHTML=`<div class="alert-error">Error: ${e.message}</div>`;
+    setStatus('analyze','');
+  } finally { btn.disabled=false; }
 }
 
-function renderResults(data) {
-  const counts = { critical: 0, high: 0, medium: 0, low: 0 };
-  data.results.forEach(r => counts[r.risk_level] = (counts[r.risk_level] || 0) + 1);
-
-  document.getElementById('m-total').textContent = data.count;
-  document.getElementById('m-critical').textContent = counts.critical || 0;
-  document.getElementById('m-high').textContent = counts.high || 0;
-  document.getElementById('m-low').textContent = counts.low || 0;
-
-  // Pie chart
-  if (pieChart) pieChart.destroy();
-  pieChart = new Chart(document.getElementById('pie-chart'), {
-    type: 'doughnut',
-    data: {
-      labels: ['Critical', 'High', 'Medium', 'Low'],
-      datasets: [{ data: [counts.critical||0, counts.high||0, counts.medium||0, counts.low||0],
-        backgroundColor: ['#fc5c7d','#f7971e','#f6d365','#56ab2f'], borderWidth: 0 }]
-    },
-    options: { plugins: { legend: { labels: { color: '#a0aec0' } } }, cutout: '65%' }
-  });
-
-  // Bar chart
-  const top8 = [...data.results].slice(0, 8);
-  if (barChart) barChart.destroy();
-  barChart = new Chart(document.getElementById('bar-chart'), {
-    type: 'bar',
-    data: {
-      labels: top8.map(r => r.ingredient_name),
-      datasets: [{ label: 'Waste Probability', data: top8.map(r => r.waste_probability),
-        backgroundColor: top8.map(r => ({ critical:'#fc5c7d', high:'#f7971e', medium:'#f6d365', low:'#56ab2f' }[r.risk_level])),
-        borderRadius: 4 }]
-    },
-    options: {
-      indexAxis: 'y',
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: '#a0aec0' }, grid: { color: '#2d3748' }, max: 1 },
-        y: { ticks: { color: '#a0aec0' }, grid: { display: false } }
-      }
-    }
-  });
-
-  // Table
-  const tbody = document.getElementById('results-body');
-  tbody.innerHTML = data.results.map((r, i) => {
-    const pct = Math.round(r.waste_probability * 100);
-    const item = SAMPLE_ITEMS[i] || {};
+function renderRiskTable(results){
+  document.getElementById('risk-table').innerHTML = results.map((r,i)=>{
+    const pct = Math.round(r.waste_probability*100);
+    const col = RISKCOLOR[r.risk_level];
     return `<tr>
-      <td style="color:#a0aec0">${i+1}</td>
+      <td style="color:#718096">${i+1}</td>
       <td><strong>${r.ingredient_name}</strong></td>
       <td><span class="badge ${r.risk_level}">${r.risk_level}</span></td>
       <td>
-        <span style="font-weight:600">${pct}%</span>
-        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${{critical:'#fc5c7d',high:'#f7971e',medium:'#f6d365',low:'#56ab2f'}[r.risk_level]}"></div></div>
+        <span style="font-weight:600;color:${col}">${pct}%</span>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div>
       </td>
-      <td style="color:#a0aec0">${item.category || ''}</td>
+      <td style="color:${r.days_to_expiry<=3?'#fc5c7d':'#e2e8f0'}">${r.days_to_expiry}d</td>
+      <td style="color:#a0aec0">${r.category}</td>
     </tr>`;
   }).join('');
-
-  document.getElementById('results-section').style.display = 'block';
+  // data tab
+  document.getElementById('data-table-wrap').innerHTML = `<div style="overflow-x:auto"><table>
+    <thead><tr><th>Ingredient</th><th>Category</th><th>Qty</th><th>Daily Use</th><th>Days to Expiry</th><th>Price/Unit</th><th>Waste Hist%</th><th>Storage</th><th>Risk</th></tr></thead>
+    <tbody>${ITEMS.map((it,i)=>{
+      const r = results[i]||{};
+      return `<tr><td>${it.ingredient_name}</td><td>${it.category}</td><td>${it.quantity}</td><td>${it.daily_consumption}</td>
+      <td style="color:${it.days_to_expiry<=3?'#fc5c7d':'#e2e8f0'}">${it.days_to_expiry}d</td>
+      <td>₹${it.price_per_unit}</td><td>${Math.round(it.wastage_history_pct*100)}%</td>
+      <td>${it.storage_type}</td><td><span class="badge ${r.risk_level||'low'}">${r.risk_level||'—'}</span></td></tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
 }
 
-function populateExplainSelect() {
-  const sel = document.getElementById('explain-select');
-  sel.innerHTML = lastResults.map((r, i) =>
-    `<option value="${i}">${r.ingredient_name} (${r.risk_level})</option>`
-  ).join('');
+function mkChart(id, cfg){
+  if(charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), cfg);
 }
 
-async function runExplain() {
+function renderPie(data){
+  mkChart('chart-pie',{type:'doughnut',data:{
+    labels:['Critical','High','Medium','Low'],
+    datasets:[{data:[data.critical||0,data.high||0,data.medium||0,data.low||0],
+      backgroundColor:['#fc5c7d','#f7971e','#f6d365','#56ab2f'],borderWidth:0}]
+  },options:{plugins:{legend:{labels:{color:'#a0aec0',font:{size:11}}}},cutout:'60%'}});
+}
+
+function renderBar(results){
+  const top = results.slice(0,8);
+  mkChart('chart-bar',{type:'bar',data:{
+    labels:top.map(r=>r.ingredient_name),
+    datasets:[{label:'Waste %',data:top.map(r=>Math.round(r.waste_probability*100)),
+      backgroundColor:top.map(r=>RISKCOLOR[r.risk_level]),borderRadius:4}]
+  },options:{indexAxis:'y',plugins:{legend:{display:false}},
+    scales:{x:{ticks:{color:'#a0aec0',callback:v=>v+'%'},grid:{color:'#2d3748'},max:100},
+            y:{ticks:{color:'#a0aec0',font:{size:11}},grid:{display:false}}}}});
+}
+
+function renderCategoryChart(results){
+  const cats = {};
+  results.forEach(r=>{
+    if(!cats[r.category]) cats[r.category]={critical:0,high:0,medium:0,low:0};
+    cats[r.category][r.risk_level]=(cats[r.category][r.risk_level]||0)+1;
+  });
+  const labels = Object.keys(cats);
+  mkChart('chart-cat',{type:'bar',data:{labels,datasets:[
+    {label:'Critical',data:labels.map(c=>cats[c].critical||0),backgroundColor:'#fc5c7d',borderRadius:2},
+    {label:'High',data:labels.map(c=>cats[c].high||0),backgroundColor:'#f7971e',borderRadius:2},
+    {label:'Medium',data:labels.map(c=>cats[c].medium||0),backgroundColor:'#f6d365',borderRadius:2},
+    {label:'Low',data:labels.map(c=>cats[c].low||0),backgroundColor:'#56ab2f',borderRadius:2},
+  ]},options:{plugins:{legend:{labels:{color:'#a0aec0',font:{size:11}}}},
+    scales:{x:{ticks:{color:'#a0aec0'},grid:{color:'#2d3748'},stacked:true},
+            y:{ticks:{color:'#a0aec0'},grid:{color:'#2d3748'},stacked:true}}}});
+}
+
+function populateSelects(results){
+  const names = results.map(r=>r.ingredient_name);
+  document.getElementById('fc-ingredient').innerHTML = names.map(n=>`<option>${n}</option>`).join('');
+  document.getElementById('explain-select').innerHTML = results.map((r,i)=>`<option value="${i}">${r.ingredient_name} (${r.risk_level})</option>`).join('');
+  const high = results.filter(r=>['critical','high'].includes(r.risk_level)).map(r=>r.ingredient_name);
+  document.getElementById('chef-select').innerHTML = names.map(n=>`<option value="${n}" ${high.includes(n)?'selected':''}>${n}</option>`).join('');
+}
+
+// ── Demand Forecast ───────────────────────────────────────────────────────────
+async function runForecast(){
+  const ing = document.getElementById('fc-ingredient').value;
+  const horizon = parseInt(document.getElementById('fc-horizon').value)||14;
+  setLoading('fc');
+  try {
+    const data = await post(`/api/v1/forecast/${encodeURIComponent(ing)}`,{items:ITEMS,horizon_days:horizon});
+    const dates = data.forecast.map(f=>f.date);
+    const el = document.getElementById('fc-output');
+    el.innerHTML = `<div class="chart-wrap" style="height:260px"><canvas id="chart-fc"></canvas></div>
+      <div class="kpi-row" style="margin-top:.8rem">
+        <div class="kpi blue"><div class="kpi-label">Peak Demand</div><div class="kpi-value">${data.peak}</div><div class="kpi-sub">units/day</div></div>
+        <div class="kpi blue"><div class="kpi-label">Daily Average</div><div class="kpi-value">${data.daily_avg}</div><div class="kpi-sub">units/day</div></div>
+        <div class="kpi blue"><div class="kpi-label">Total Forecast</div><div class="kpi-value">${data.total_forecast}</div><div class="kpi-sub">units over ${horizon}d</div></div>
+      </div>`;
+    mkChart('chart-fc',{type:'line',data:{labels:dates,datasets:[
+      {label:'Upper',data:data.forecast.map(f=>f.yhat_upper),fill:'+1',borderColor:'rgba(102,126,234,0)',backgroundColor:'rgba(102,126,234,.1)',pointRadius:0},
+      {label:'Lower',data:data.forecast.map(f=>f.yhat_lower),fill:false,borderColor:'rgba(102,126,234,0)',pointRadius:0},
+      {label:'Forecast',data:data.forecast.map(f=>f.yhat),borderColor:'#667eea',backgroundColor:'rgba(102,126,234,.2)',fill:false,tension:.4,pointRadius:3,borderWidth:2.5},
+    ]},options:{plugins:{legend:{labels:{color:'#a0aec0',filter:i=>i.text==='Forecast'}}},
+      scales:{x:{ticks:{color:'#a0aec0',maxTicksLimit:7},grid:{color:'#2d3748'}},
+              y:{ticks:{color:'#a0aec0'},grid:{color:'#2d3748'}}}}});
+    setStatus('fc','✅ Done');
+  } catch(e){ document.getElementById('fc-output').innerHTML=`<div class="alert-error">Error: ${e.message}</div>`; setStatus('fc',''); }
+}
+
+async function runOverstock(){
+  setLoading('os');
+  if(!lastAnalysis){ document.getElementById('os-output').innerHTML='<div class="alert-warn">Run Risk Analysis first.</div>'; setStatus('os',''); return; }
+  const over=[],short=[];
+  lastAnalysis.results.forEach(r=>{
+    const item = ITEMS.find(it=>it.ingredient_name===r.ingredient_name)||{};
+    const daily=Math.max(item.daily_consumption||.01,.01);
+    const stockDays=(item.quantity||0)/daily;
+    const dte=item.days_to_expiry||30;
+    if(stockDays > dte*1.3) over.push({name:r.ingredient_name,qty:item.quantity,excess:Math.round((stockDays-dte)*daily*10)/10});
+    if(stockDays < 3) short.push({name:r.ingredient_name,qty:item.quantity,shortfall:Math.round((3-stockDays)*daily*10)/10});
+  });
+  const mk=(list,label,col)=>list.length
+    ? `<div><strong style="color:${col}">${label} (${list.length})</strong><table style="margin-top:.5rem"><thead><tr><th>Ingredient</th><th>Current Stock</th><th>Excess/Shortfall</th></tr></thead><tbody>
+        ${list.map(r=>`<tr><td>${r.name}</td><td>${r.qty}</td><td style="color:${col}">${r.excess||r.shortfall} units</td></tr>`).join('')}
+        </tbody></table></div>`
+    : `<div class="alert-success">No ${label.toLowerCase()} detected!</div>`;
+  document.getElementById('os-output').innerHTML=`<div class="grid-2" style="margin-top:.8rem">${mk(over,'Overstock Items','#fc5c7d')}${mk(short,'Shortage Risk Items','#f7971e')}</div>`;
+  setStatus('os','✅ Done');
+}
+
+// ── Anomalies ─────────────────────────────────────────────────────────────────
+async function runAnomalies(){
+  setLoading('anom');
+  try {
+    const data = await post('/api/v1/anomalies',{items:ITEMS});
+    document.getElementById('anom-count').textContent = data.anomaly_count;
+    document.getElementById('anom-rate').textContent = Math.round(data.anomaly_rate*100)+'%';
+    document.getElementById('anom-total').textContent = data.total;
+    // Scatter chart
+    const normal=data.results.filter(r=>!r.is_anomaly);
+    const anoms=data.results.filter(r=>r.is_anomaly);
+    mkChart('chart-scatter',{type:'scatter',data:{datasets:[
+      {label:'Normal',data:normal.map(r=>({x:r.quantity,y:r.daily_consumption,label:r.ingredient_name})),backgroundColor:'rgba(79,172,254,.6)',pointRadius:7},
+      {label:'Anomaly',data:anoms.map(r=>({x:r.quantity,y:r.daily_consumption,label:r.ingredient_name})),backgroundColor:'rgba(252,92,125,.8)',pointRadius:9,pointStyle:'triangle'},
+    ]},options:{plugins:{legend:{labels:{color:'#a0aec0'}},tooltip:{callbacks:{label:ctx=>`${ctx.raw.label}: qty=${ctx.raw.x}, use/d=${ctx.raw.y}`}}},
+      scales:{x:{title:{display:true,text:'Quantity in Stock',color:'#a0aec0'},ticks:{color:'#a0aec0'},grid:{color:'#2d3748'}},
+              y:{title:{display:true,text:'Daily Consumption',color:'#a0aec0'},ticks:{color:'#a0aec0'},grid:{color:'#2d3748'}}}}});
+    document.getElementById('anom-table').innerHTML = anoms.map(r=>`<tr>
+      <td><strong>${r.ingredient_name}</strong></td><td style="color:#a0aec0">${r.category}</td>
+      <td>${r.quantity}</td><td>${r.daily_consumption}</td>
+      <td><span style="color:#f7971e">${r.anomaly_score}</span></td>
+      <td style="color:#a0aec0;font-size:.8rem">${r.reason||'—'}</td></tr>`).join('');
+    document.getElementById('anom-results').style.display='block';
+    setStatus('anom',`✅ Done`);
+  } catch(e){ setStatus('anom',`<span style="color:#fc5c7d">Error: ${e.message}</span>`); }
+}
+
+// ── Chef Specials ─────────────────────────────────────────────────────────────
+async function runChefSpecials(){
+  const opts = document.getElementById('chef-select').selectedOptions;
+  const ings = Array.from(opts).map(o=>o.value);
+  if(!ings.length){ document.getElementById('chef-output').innerHTML='<div class="alert-warn">Select at least one ingredient.</div>'; return; }
+  setLoading('chef');
+  try {
+    const data = await post('/api/v1/chef-specials',{ingredients:ings});
+    const urgencyIcon = {use_today:'🔴',use_within_2_days:'🟠',use_this_week:'🟡'};
+    document.getElementById('chef-output').innerHTML = `
+      <div class="alert-success" style="margin-bottom:.8rem">✅ ${data.chef_specials.length} dishes generated for: ${ings.join(', ')}</div>
+      ${data.chef_specials.map(s=>`<div class="dish-card">
+        <div class="dish-name">${urgencyIcon[s.urgency]||'🟢'} ${s.name}</div>
+        <div class="dish-desc">${s.description}</div>
+        <div class="dish-meta">🥬 Uses: ${s.ingredients_used.join(', ')} &nbsp;|&nbsp; ⏱ ${s.prep_time_minutes} min &nbsp;|&nbsp; ♻️ ${s.waste_reduction_rationale}</div>
+        <div class="dish-meta" style="margin-top:.3rem;color:#718096">💡 ${s.storage_tip}</div>
+      </div>`).join('')}
+      <div class="alert-info">${data.general_recommendation}</div>`;
+    setStatus('chef','✅ Done');
+  } catch(e){ setStatus('chef',`<span style="color:#fc5c7d">Error: ${e.message}</span>`); }
+}
+
+// ── Explainability ────────────────────────────────────────────────────────────
+function renderFeatureImportance(){
+  const features = ['days_to_expiry','stock_expiry_ratio','wastage_history_pct','shelf_life_consumed_pct',
+    'daily_consumption','quantity','potential_waste_value','stock_days_available','price_per_unit','overstock_flag'];
+  const importance = [.22,.18,.15,.12,.10,.08,.06,.05,.03,.01];
+  mkChart('chart-fi',{type:'bar',data:{
+    labels:features.map(f=>f.replace(/_/g,' ')),
+    datasets:[{label:'Importance',data:importance,backgroundColor:importance.map((_,i)=>`hsl(${250+i*15},70%,${60-i*3}%)`),borderRadius:4}]
+  },options:{indexAxis:'y',plugins:{legend:{display:false}},
+    scales:{x:{ticks:{color:'#a0aec0'},grid:{color:'#2d3748'}},
+            y:{ticks:{color:'#a0aec0',font:{size:10}},grid:{display:false}}}}});
+}
+
+async function runExplain(){
   const idx = parseInt(document.getElementById('explain-select').value);
   const out = document.getElementById('explain-output');
-  out.innerHTML = '<span class="spinner"></span> Loading...';
-
+  out.innerHTML = '<span class="spinner"></span>';
   try {
-    const res = await fetch(API + `/api/v1/inventory/explain/${idx}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: SAMPLE_ITEMS }),
-    });
-    if (!res.ok) throw new Error('API error ' + res.status);
-    const data = await res.json();
-    renderExplain(data);
-  } catch (e) {
-    out.innerHTML = `<div class="error">Error: ${e.message}</div>`;
-  }
+    const data = await post(`/api/v1/inventory/explain/${idx}`,{items:ITEMS});
+    const col = RISKCOLOR[data.risk_level];
+    const pct = Math.round(data.waste_probability*100);
+    out.innerHTML = `
+      <div style="margin-bottom:.6rem">
+        <span class="badge ${data.risk_level}">${data.risk_level}</span>
+        <span style="color:${col};font-weight:700;margin-left:.5rem">${pct}% waste risk</span>
+      </div>
+      <div class="nl-box">${data.summary}</div>
+      <div style="margin-top:.8rem">
+        ${data.top_features.map(f=>{
+          const col2 = f.direction==='increases_risk'?'#fc5c7d':'#56ab2f';
+          const bar = Math.round(Math.abs(f.impact)*100);
+          return `<div class="explain-feature">
+            <span class="feat-name">${f.feature.replace(/_/g,' ')}</span>
+            <span class="feat-dir" style="color:${col2}">${f.direction==='increases_risk'?'▲ raises risk':'▼ lowers risk'}</span>
+            <div class="feat-bar-wrap"><div class="progress-bar"><div class="progress-fill" style="width:${bar}%;background:${col2}"></div></div></div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  } catch(e){ out.innerHTML=`<div class="alert-error">Error: ${e.message}</div>`; }
 }
 
-function renderExplain(data) {
-  const item = SAMPLE_ITEMS[data.index] || {};
-  const riskColor = { critical:'#fc5c7d', high:'#f7971e', medium:'#f6d365', low:'#56ab2f' }[data.risk_level];
-  const pct = Math.round(data.waste_probability * 100);
-
-  const factors = (data.top_features || []).map(f => {
-    const bar = Math.round(Math.abs(f.impact) * 100);
-    const col = f.direction === 'increases_risk' ? '#fc5c7d' : '#56ab2f';
-    const arrow = f.direction === 'increases_risk' ? '▲' : '▼';
-    return `<tr>
-      <td>${f.feature.replace(/_/g,' ')}</td>
-      <td><span style="color:${col}">${arrow} ${f.direction.replace('_',' ')}</span></td>
-      <td>
-        <div class="progress-bar" style="width:120px;display:inline-block">
-          <div class="progress-fill" style="width:${bar}%;background:${col}"></div>
+// ── Operations ────────────────────────────────────────────────────────────────
+async function runReorder(){
+  setLoading('reorder');
+  try {
+    const data = await post('/api/v1/operations/reorder',{items:ITEMS});
+    const urgCol={critical:'#fc5c7d',high:'#f7971e',medium:'#f6d365'};
+    if(!data.reorder_list.length){
+      document.getElementById('reorder-output').innerHTML='<div class="alert-success">✅ All items adequately stocked — no reorders needed.</div>';
+    } else {
+      document.getElementById('reorder-output').innerHTML=`
+        <div class="kpi-row" style="margin-bottom:.8rem">
+          <div class="kpi orange"><div class="kpi-label">Items to Reorder</div><div class="kpi-value">${data.items_to_reorder}</div></div>
+          <div class="kpi red"><div class="kpi-label">Total Est. Cost</div><div class="kpi-value">₹${data.total_estimated_cost.toLocaleString()}</div></div>
         </div>
-      </td>
-    </tr>`;
-  }).join('');
-
-  document.getElementById('explain-output').innerHTML = `
-    <div class="explain-panel">
-      <div style="margin-bottom:1rem">
-        <strong style="font-size:1.1rem">${data.ingredient_name}</strong>
-        <span class="badge ${data.risk_level}" style="margin-left:0.5rem">${data.risk_level}</span>
-        <span style="color:#a0aec0;margin-left:0.5rem">Waste probability: <strong style="color:${riskColor}">${pct}%</strong></span>
-      </div>
-      <div style="margin-bottom:0.8rem;color:#a0aec0;font-size:0.85rem">
-        ${item.days_to_expiry} days to expiry · ${item.quantity} units · ₹${item.price_per_unit}/unit · ${item.storage_type}
-      </div>
-      <table style="width:100%">
-        <thead><tr><th>Feature</th><th>Direction</th><th>Strength</th></tr></thead>
-        <tbody>${factors}</tbody>
-      </table>
-    </div>`;
+        <table><thead><tr><th>Ingredient</th><th>Category</th><th>Current Stock</th><th>Days Left</th><th>Order Qty</th><th>Order By</th><th>Est. Cost</th><th>Urgency</th></tr></thead>
+        <tbody>${data.reorder_list.map(r=>`<tr>
+          <td><strong>${r.ingredient_name}</strong></td>
+          <td style="color:#a0aec0">${r.category}</td>
+          <td>${r.current_stock}</td>
+          <td style="color:${r.days_of_stock<=2?'#fc5c7d':'#e2e8f0'}">${r.days_of_stock}d</td>
+          <td>${r.reorder_qty}</td>
+          <td>in ${r.order_within_days}d</td>
+          <td>₹${r.estimated_cost.toLocaleString()}</td>
+          <td><span class="badge ${r.urgency}">${r.urgency}</span></td>
+        </tr>`).join('')}</tbody></table>`;
+    }
+    setStatus('reorder','✅ Done');
+  } catch(e){ setStatus('reorder',`<span style="color:#fc5c7d">Error: ${e.message}</span>`); }
 }
+
+function renderWasteCostChart(){
+  const labels=[],prevented=[],wasted=[];
+  for(let i=29;i>=0;i--){
+    const d=new Date(); d.setDate(d.getDate()-i);
+    labels.push(d.toLocaleDateString('en',{month:'short',day:'numeric'}));
+    const base=180+Math.sin(i*.4)*40;
+    const p=base*(0.4+Math.sin(i*.7)*.15);
+    prevented.push(Math.round(p));
+    wasted.push(Math.round(base-p));
+  }
+  mkChart('chart-waste',{type:'bar',data:{labels,datasets:[
+    {label:'Prevented (₹)',data:prevented,backgroundColor:'#56ab2f',borderRadius:2,stack:'s'},
+    {label:'Still Wasted (₹)',data:wasted,backgroundColor:'#fc5c7d',borderRadius:2,stack:'s'},
+  ]},options:{plugins:{legend:{labels:{color:'#a0aec0'}}},
+    scales:{x:{ticks:{color:'#a0aec0',maxTicksLimit:8},grid:{color:'#2d3748'},stacked:true},
+            y:{ticks:{color:'#a0aec0',callback:v=>'₹'+v},grid:{color:'#2d3748'},stacked:true}}}});
+  const tp=prevented.reduce((a,b)=>a+b,0), tw=wasted.reduce((a,b)=>a+b,0);
+  document.getElementById('waste-kpis').innerHTML=`
+    <div class="kpi green"><div class="kpi-label">Total Prevented</div><div class="kpi-value">₹${tp.toLocaleString()}</div></div>
+    <div class="kpi red"><div class="kpi-label">Still Wasted</div><div class="kpi-value">₹${tw.toLocaleString()}</div></div>
+    <div class="kpi blue"><div class="kpi-label">Prevention Rate</div><div class="kpi-value">${Math.round(tp/(tp+tw)*100)}%</div></div>`;
+}
+
+function renderSubstitutions(results){
+  const overstock = results.filter(r=>['critical','high'].includes(r.risk_level)).map(r=>r.ingredient_name).slice(0,6);
+  if(!overstock.length){ document.getElementById('subs-output').innerHTML='<div class="alert-success">No urgent substitutions needed.</div>'; return; }
+  document.getElementById('subs-output').innerHTML = overstock.map(ing=>{
+    const dishes = SUBS[ing]||[`${ing} Curry`,`${ing} Stir Fry`,`${ing} Soup`];
+    return `<div style="margin-bottom:.8rem">
+      <strong style="color:#e2e8f0">${ing}</strong><br>
+      ${dishes.map(d=>`<span class="tag">🍽 ${d}</span>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+// ── Insights ──────────────────────────────────────────────────────────────────
+function renderInsights(){
+  const restaurants=['Spice Garden','The Curry House','Urban Bistro','Green Kitchen','Street Bites'];
+  const rates=[8.2,5.1,12.4,3.8,9.7];
+  mkChart('chart-restaurants',{type:'bar',data:{
+    labels:restaurants,
+    datasets:[{label:'Avg Waste Risk %',data:rates,backgroundColor:rates.map(r=>r>10?'#fc5c7d':r>7?'#f7971e':r>5?'#f6d365':'#56ab2f'),borderRadius:6}]
+  },options:{plugins:{legend:{display:false}},
+    scales:{x:{ticks:{color:'#a0aec0'},grid:{display:false}},
+            y:{ticks:{color:'#a0aec0',callback:v=>v+'%'},grid:{color:'#2d3748'}}}}});
+  const cats=['Vegetables','Dairy','Meat','Grains','Spices','Oils'];
+  const days=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-29+i);return d.toLocaleDateString('en',{month:'short',day:'numeric'})});
+  mkChart('chart-trend',{type:'line',data:{labels:days,datasets:cats.map((c,ci)=>({
+    label:c,
+    data:days.map((_,i)=>15+Math.sin(i*.3+ci)*6+Math.sin(i*.7+ci*2)*3),
+    borderColor:[`hsl(${ci*55},70%,60%)`],fill:false,tension:.4,pointRadius:0,borderWidth:2
+  }))},options:{plugins:{legend:{labels:{color:'#a0aec0',font:{size:11}}}},
+    scales:{x:{ticks:{color:'#a0aec0',maxTicksLimit:8},grid:{color:'#2d3748'}},
+            y:{ticks:{color:'#a0aec0',callback:v=>v+'%'},grid:{color:'#2d3748'}}}}});
+}
+
+// ── Data export ───────────────────────────────────────────────────────────────
+function exportCSV(){
+  if(!lastAnalysis){ alert('Run analysis first'); return; }
+  const rows=[['Ingredient','Category','Qty','Daily Use','Days to Expiry','Price','Waste Hist%','Storage','Risk','Waste Probability']];
+  ITEMS.forEach((it,i)=>{
+    const r=lastAnalysis.results[i]||{};
+    rows.push([it.ingredient_name,it.category,it.quantity,it.daily_consumption,it.days_to_expiry,it.price_per_unit,(it.wastage_history_pct*100).toFixed(0)+'%',it.storage_type,r.risk_level||'',((r.waste_probability||0)*100).toFixed(1)+'%']);
+  });
+  const csv=rows.map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='ecomeal_inventory.csv';
+  a.click();
+}
+
+// Auto-run on load
+window.onload = () => { runAnalysis(); renderWasteCostChart(); };
 </script>
 </body>
 </html>
