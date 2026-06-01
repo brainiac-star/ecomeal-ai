@@ -8,12 +8,17 @@
         "maxLambdaSize": "50mb",
         "runtime": "python3.11"
       }
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/index.py"
-    }
+    { "src": "/api/(.*)", "dest": "api/index.py" },
+    { "src": "/docs", "dest": "api/index.py" },
+    { "src": "/openapi.json", "dest": "api/index.py" },
+    { "src": "/health", "dest": "api/index.py" },
+    { "src": "/(.*)", "dest": "public/index.html" }
   ]
 }

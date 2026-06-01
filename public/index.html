@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ecomeal AI — Food Waste Intelligence</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 2rem;
+      text-align: center;
+    }
+    header h1 { font-size: 2.2rem; font-weight: 700; color: #fff; }
+    header p { color: rgba(255,255,255,0.85); margin-top: 0.5rem; font-size: 1.05rem; }
+    .links { margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .links a {
+      background: rgba(255,255,255,0.15); color: #fff; padding: 0.4rem 1rem;
+      border-radius: 20px; text-decoration: none; font-size: 0.9rem;
+      border: 1px solid rgba(255,255,255,0.3); transition: background 0.2s;
+    }
+    .links a:hover { background: rgba(255,255,255,0.25); }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1rem; }
+
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .metric-card {
+      background: #1a1f2e; border-radius: 12px; padding: 1.2rem;
+      border: 1px solid #2d3748; text-align: center;
+    }
+    .metric-card .value { font-size: 2rem; font-weight: 700; }
+    .metric-card .label { color: #a0aec0; font-size: 0.85rem; margin-top: 0.3rem; }
+    .critical { color: #fc5c7d; }
+    .high { color: #f7971e; }
+    .medium { color: #f6d365; }
+    .low { color: #56ab2f; }
+
+    .section { background: #1a1f2e; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #2d3748; }
+    .section h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; color: #fff; }
+
+    .btn {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff; border: none; padding: 0.7rem 1.5rem;
+      border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: 600;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 0.6rem 0.8rem; color: #a0aec0; font-weight: 500; border-bottom: 1px solid #2d3748; }
+    td { padding: 0.6rem 0.8rem; border-bottom: 1px solid #1e2535; }
+    tr:hover td { background: #1e2535; }
+
+    .badge {
+      display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px;
+      font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+    }
+    .badge.critical { background: rgba(252,92,125,0.15); color: #fc5c7d; }
+    .badge.high { background: rgba(247,151,30,0.15); color: #f7971e; }
+    .badge.medium { background: rgba(246,211,101,0.15); color: #f6d365; }
+    .badge.low { background: rgba(86,171,47,0.15); color: #56ab2f; }
+
+    .progress-bar { background: #2d3748; border-radius: 4px; height: 6px; margin-top: 4px; }
+    .progress-fill { height: 6px; border-radius: 4px; transition: width 0.5s; }
+
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .chart-wrap { position: relative; height: 220px; }
+
+    .explain-panel { background: #0f1117; border-radius: 8px; padding: 1rem; margin-top: 0.5rem; font-size: 0.88rem; line-height: 1.6; }
+    .explain-panel .risk-factor { color: #fc5c7d; }
+    .explain-panel .safe-factor { color: #56ab2f; }
+
+    select, input[type=number] {
+      background: #0f1117; border: 1px solid #2d3748; color: #e2e8f0;
+      padding: 0.5rem 0.8rem; border-radius: 8px; font-size: 0.9rem;
+    }
+
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .tab {
+      padding: 0.5rem 1.2rem; border-radius: 8px; cursor: pointer;
+      font-size: 0.9rem; border: 1px solid #2d3748; background: #1a1f2e; color: #a0aec0;
+      transition: all 0.2s;
+    }
+    .tab.active { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border-color: transparent; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .error { color: #fc5c7d; background: rgba(252,92,125,0.1); padding: 0.8rem 1rem; border-radius: 8px; margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🥗 Ecomeal AI</h1>
+  <p>Food Waste Intelligence Platform for Restaurants</p>
+  <div class="links">
+    <a href="/docs" target="_blank">⚡ API Docs</a>
+    <a href="https://ecomeal-ai-xlpkjjudmoxh5zwwegnuhp.streamlit.app/" target="_blank">📊 Full Dashboard</a>
+    <a href="https://github.com/brainiac-star/ecomeal-ai" target="_blank">💻 GitHub</a>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('overview')">🔍 Risk Analysis</div>
+    <div class="tab" onclick="switchTab('explain')">🔬 Explainability</div>
+    <div class="tab" onclick="switchTab('about')">ℹ️ About</div>
+  </div>
+
+  <!-- TAB: OVERVIEW -->
+  <div id="tab-overview" class="tab-content active">
+    <div class="metrics" id="metrics-row">
+      <div class="metric-card"><div class="value" id="m-total">—</div><div class="label">Total Items</div></div>
+      <div class="metric-card"><div class="value critical" id="m-critical">—</div><div class="label">Critical Risk</div></div>
+      <div class="metric-card"><div class="value high" id="m-high">—</div><div class="label">High Risk</div></div>
+      <div class="metric-card"><div class="value low" id="m-low">—</div><div class="label">Low Risk</div></div>
+    </div>
+
+    <div class="section">
+      <h2>📦 Inventory Analysis</h2>
+      <button class="btn" id="analyze-btn" onclick="runAnalysis()">🔍 Analyse Sample Inventory</button>
+      <span id="analyze-status"></span>
+      <div id="analyze-error"></div>
+    </div>
+
+    <div class="section" id="results-section" style="display:none">
+      <h2>🏆 Waste Risk Rankings</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem">
+        <div><div class="chart-wrap"><canvas id="pie-chart"></canvas></div></div>
+        <div><div class="chart-wrap"><canvas id="bar-chart"></canvas></div></div>
+      </div>
+      <table id="results-table">
+        <thead><tr><th>#</th><th>Ingredient</th><th>Risk Level</th><th>Waste Probability</th><th>Category</th></tr></thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB: EXPLAIN -->
+  <div id="tab-explain" class="tab-content">
+    <div class="section">
+      <h2>🔬 Item-Level Explainability</h2>
+      <p style="color:#a0aec0;font-size:0.9rem;margin-bottom:1rem">Select an ingredient to see why the model flagged it as a waste risk.</p>
+      <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
+        <select id="explain-select" style="min-width:200px"><option>Run analysis first →</option></select>
+        <button class="btn" onclick="runExplain()">🔬 Explain</button>
+      </div>
+      <div id="explain-output" style="margin-top:1rem"></div>
+    </div>
+  </div>
+
+  <!-- TAB: ABOUT -->
+  <div id="tab-about" class="tab-content">
+    <div class="section">
+      <h2>What is Ecomeal AI?</h2>
+      <p style="color:#a0aec0;line-height:1.7;margin-bottom:1rem">
+        Ecomeal AI is a food waste prediction and recommendation platform for restaurants.
+        It combines ML models, demand forecasting, and LLM-generated suggestions to help
+        kitchens reduce waste before it happens.
+      </p>
+      <table>
+        <thead><tr><th>Component</th><th>Technology</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td>Wastage Predictor</td><td>XGBoost + LightGBM ensemble</td><td>Binary waste risk classification per item</td></tr>
+          <tr><td>Demand Forecaster</td><td>Facebook Prophet</td><td>14-day per-ingredient demand forecast</td></tr>
+          <tr><td>Anomaly Detector</td><td>Isolation Forest</td><td>Flags unusual inventory patterns</td></tr>
+          <tr><td>Chef Specials</td><td>Groq / Gemini LLM + RAG</td><td>AI-generated dishes for expiring ingredients</td></tr>
+          <tr><td>Explainability</td><td>LightGBM pred_contrib (SHAP)</td><td>Plain-English per-item explanations</td></tr>
+          <tr><td>API</td><td>FastAPI on Vercel</td><td>REST endpoints for all predictions</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = '';  // same origin
+
+const SAMPLE_ITEMS = [
+  { ingredient_name: "Tomatoes",      category: "vegetables",     quantity: 8,   daily_consumption: 0.4, days_to_expiry: 2,  total_shelf_life_days: 7,  days_since_purchase: 5,  price_per_unit: 40,  wastage_history_pct: 0.30, storage_type: "refrigerated" },
+  { ingredient_name: "Chicken",       category: "meat_seafood",   quantity: 15,  daily_consumption: 3.0, days_to_expiry: 1,  total_shelf_life_days: 3,  days_since_purchase: 2,  price_per_unit: 200, wastage_history_pct: 0.15, storage_type: "refrigerated" },
+  { ingredient_name: "Basmati Rice",  category: "grains_pulses",  quantity: 50,  daily_consumption: 5.0, days_to_expiry: 180,total_shelf_life_days: 365,days_since_purchase: 10, price_per_unit: 80,  wastage_history_pct: 0.05, storage_type: "ambient" },
+  { ingredient_name: "Paneer",        category: "dairy",          quantity: 12,  daily_consumption: 1.2, days_to_expiry: 3,  total_shelf_life_days: 7,  days_since_purchase: 4,  price_per_unit: 300, wastage_history_pct: 0.20, storage_type: "refrigerated" },
+  { ingredient_name: "Spinach",       category: "vegetables",     quantity: 6,   daily_consumption: 0.3, days_to_expiry: 2,  total_shelf_life_days: 5,  days_since_purchase: 3,  price_per_unit: 30,  wastage_history_pct: 0.35, storage_type: "refrigerated" },
+  { ingredient_name: "Olive Oil",     category: "oils",           quantity: 20,  daily_consumption: 0.5, days_to_expiry: 300,total_shelf_life_days: 365,days_since_purchase: 5,  price_per_unit: 500, wastage_history_pct: 0.02, storage_type: "ambient" },
+  { ingredient_name: "Prawns",        category: "meat_seafood",   quantity: 10,  daily_consumption: 2.0, days_to_expiry: 1,  total_shelf_life_days: 2,  days_since_purchase: 1,  price_per_unit: 400, wastage_history_pct: 0.25, storage_type: "frozen" },
+  { ingredient_name: "Coriander",     category: "vegetables",     quantity: 3,   daily_consumption: 0.2, days_to_expiry: 3,  total_shelf_life_days: 7,  days_since_purchase: 4,  price_per_unit: 20,  wastage_history_pct: 0.40, storage_type: "refrigerated" },
+  { ingredient_name: "Butter",        category: "dairy",          quantity: 5,   daily_consumption: 0.3, days_to_expiry: 20, total_shelf_life_days: 30, days_since_purchase: 10, price_per_unit: 50,  wastage_history_pct: 0.08, storage_type: "refrigerated" },
+  { ingredient_name: "Cumin Seeds",   category: "spices",         quantity: 8,   daily_consumption: 0.1, days_to_expiry: 200,total_shelf_life_days: 365,days_since_purchase: 20, price_per_unit: 60,  wastage_history_pct: 0.03, storage_type: "ambient" },
+  { ingredient_name: "Mushrooms",     category: "vegetables",     quantity: 7,   daily_consumption: 0.5, days_to_expiry: 3,  total_shelf_life_days: 7,  days_since_purchase: 4,  price_per_unit: 120, wastage_history_pct: 0.28, storage_type: "refrigerated" },
+  { ingredient_name: "Flour",         category: "grains_pulses",  quantity: 100, daily_consumption: 8.0, days_to_expiry: 90, total_shelf_life_days: 180,days_since_purchase: 5,  price_per_unit: 35,  wastage_history_pct: 0.04, storage_type: "ambient" },
+];
+
+let lastResults = [];
+let pieChart = null;
+let barChart = null;
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  const tabs = ['overview','explain','about'];
+  document.querySelectorAll('.tab')[tabs.indexOf(name)].classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+async function runAnalysis() {
+  const btn = document.getElementById('analyze-btn');
+  const status = document.getElementById('analyze-status');
+  const errDiv = document.getElementById('analyze-error');
+  btn.disabled = true;
+  status.innerHTML = '<span class="spinner"></span> Analysing...';
+  errDiv.innerHTML = '';
+
+  try {
+    const res = await fetch(API + '/api/v1/inventory/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: SAMPLE_ITEMS }),
+    });
+    if (!res.ok) throw new Error('API error ' + res.status);
+    const data = await res.json();
+    lastResults = data.results;
+    renderResults(data);
+    populateExplainSelect();
+    status.innerHTML = '✅ Done';
+  } catch (e) {
+    errDiv.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+    status.innerHTML = '';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderResults(data) {
+  const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+  data.results.forEach(r => counts[r.risk_level] = (counts[r.risk_level] || 0) + 1);
+
+  document.getElementById('m-total').textContent = data.count;
+  document.getElementById('m-critical').textContent = counts.critical || 0;
+  document.getElementById('m-high').textContent = counts.high || 0;
+  document.getElementById('m-low').textContent = counts.low || 0;
+
+  // Pie chart
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(document.getElementById('pie-chart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Critical', 'High', 'Medium', 'Low'],
+      datasets: [{ data: [counts.critical||0, counts.high||0, counts.medium||0, counts.low||0],
+        backgroundColor: ['#fc5c7d','#f7971e','#f6d365','#56ab2f'], borderWidth: 0 }]
+    },
+    options: { plugins: { legend: { labels: { color: '#a0aec0' } } }, cutout: '65%' }
+  });
+
+  // Bar chart
+  const top8 = [...data.results].slice(0, 8);
+  if (barChart) barChart.destroy();
+  barChart = new Chart(document.getElementById('bar-chart'), {
+    type: 'bar',
+    data: {
+      labels: top8.map(r => r.ingredient_name),
+      datasets: [{ label: 'Waste Probability', data: top8.map(r => r.waste_probability),
+        backgroundColor: top8.map(r => ({ critical:'#fc5c7d', high:'#f7971e', medium:'#f6d365', low:'#56ab2f' }[r.risk_level])),
+        borderRadius: 4 }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#a0aec0' }, grid: { color: '#2d3748' }, max: 1 },
+        y: { ticks: { color: '#a0aec0' }, grid: { display: false } }
+      }
+    }
+  });
+
+  // Table
+  const tbody = document.getElementById('results-body');
+  tbody.innerHTML = data.results.map((r, i) => {
+    const pct = Math.round(r.waste_probability * 100);
+    const item = SAMPLE_ITEMS[i] || {};
+    return `<tr>
+      <td style="color:#a0aec0">${i+1}</td>
+      <td><strong>${r.ingredient_name}</strong></td>
+      <td><span class="badge ${r.risk_level}">${r.risk_level}</span></td>
+      <td>
+        <span style="font-weight:600">${pct}%</span>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${{critical:'#fc5c7d',high:'#f7971e',medium:'#f6d365',low:'#56ab2f'}[r.risk_level]}"></div></div>
+      </td>
+      <td style="color:#a0aec0">${item.category || ''}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('results-section').style.display = 'block';
+}
+
+function populateExplainSelect() {
+  const sel = document.getElementById('explain-select');
+  sel.innerHTML = lastResults.map((r, i) =>
+    `<option value="${i}">${r.ingredient_name} (${r.risk_level})</option>`
+  ).join('');
+}
+
+async function runExplain() {
+  const idx = parseInt(document.getElementById('explain-select').value);
+  const out = document.getElementById('explain-output');
+  out.innerHTML = '<span class="spinner"></span> Loading...';
+
+  try {
+    const res = await fetch(API + `/api/v1/inventory/explain/${idx}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: SAMPLE_ITEMS }),
+    });
+    if (!res.ok) throw new Error('API error ' + res.status);
+    const data = await res.json();
+    renderExplain(data);
+  } catch (e) {
+    out.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+  }
+}
+
+function renderExplain(data) {
+  const item = SAMPLE_ITEMS[data.index] || {};
+  const riskColor = { critical:'#fc5c7d', high:'#f7971e', medium:'#f6d365', low:'#56ab2f' }[data.risk_level];
+  const pct = Math.round(data.waste_probability * 100);
+
+  const factors = (data.top_features || []).map(f => {
+    const bar = Math.round(Math.abs(f.impact) * 100);
+    const col = f.direction === 'increases_risk' ? '#fc5c7d' : '#56ab2f';
+    const arrow = f.direction === 'increases_risk' ? '▲' : '▼';
+    return `<tr>
+      <td>${f.feature.replace(/_/g,' ')}</td>
+      <td><span style="color:${col}">${arrow} ${f.direction.replace('_',' ')}</span></td>
+      <td>
+        <div class="progress-bar" style="width:120px;display:inline-block">
+          <div class="progress-fill" style="width:${bar}%;background:${col}"></div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('explain-output').innerHTML = `
+    <div class="explain-panel">
+      <div style="margin-bottom:1rem">
+        <strong style="font-size:1.1rem">${data.ingredient_name}</strong>
+        <span class="badge ${data.risk_level}" style="margin-left:0.5rem">${data.risk_level}</span>
+        <span style="color:#a0aec0;margin-left:0.5rem">Waste probability: <strong style="color:${riskColor}">${pct}%</strong></span>
+      </div>
+      <div style="margin-bottom:0.8rem;color:#a0aec0;font-size:0.85rem">
+        ${item.days_to_expiry} days to expiry · ${item.quantity} units · ₹${item.price_per_unit}/unit · ${item.storage_type}
+      </div>
+      <table style="width:100%">
+        <thead><tr><th>Feature</th><th>Direction</th><th>Strength</th></tr></thead>
+        <tbody>${factors}</tbody>
+      </table>
+    </div>`;
+}
+</script>
+</body>
+</html>
