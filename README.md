@@ -4,6 +4,8 @@ AI-powered food waste prediction and recommendation system for restaurants. Pred
 
 **🚀 Live Demo:** [https://ecomeal-ai-xlpkjjudmoxh5zwwegnuhp.streamlit.app/](https://ecomeal-ai-xlpkjjudmoxh5zwwegnuhp.streamlit.app/)
 
+**⚡ API (Vercel):** [https://ecomeal-ai-dsdv.vercel.app/docs](https://ecomeal-ai-dsdv.vercel.app/docs)
+
 ---
 
 ## Architecture Overview
